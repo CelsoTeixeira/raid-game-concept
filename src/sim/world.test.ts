@@ -93,6 +93,80 @@ describe("combat numbers", () => {
     world.tick(1000);
     expect(healer.stats.mana).toBe(120);
   });
+
+  it("healer click order heals that ally instead of the lowest hp", () => {
+    const world = new World();
+    const healer = world.units.find((u) => u.role === "healer")!;
+    const tanks = world.units.filter((u) => u.role === "tank");
+    healer.selected = true;
+    healer.x = tanks[0].x;
+    healer.y = tanks[0].y;
+    tanks[0].stats.health = 80;
+    tanks[1].stats.health = 10;
+    tanks[1].x = healer.x;
+    tanks[1].y = healer.y;
+    expect(world.tryCommand(tanks[0].x, tanks[0].y)).toBe(true);
+    healer.cooldown = 0;
+    const fx = act(world.units, healer);
+    expect(fx[0] && isHealFx(fx[0]) && fx[0].targetId).toBe(tanks[0].id);
+    expect(tanks[0].stats.health).toBeGreaterThan(80);
+    expect(tanks[1].stats.health).toBe(10);
+  });
+
+  it("healer click on an enemy attacks it instead of healing", () => {
+    const world = new World();
+    const healer = world.units.find((u) => u.role === "healer")!;
+    const tank = world.units.find((u) => u.role === "tank")!;
+    world.spawnEnemy();
+    const enemy = world.units.find((u) => u.side === "enemy")!;
+    healer.selected = true;
+    healer.x = enemy.x;
+    healer.y = enemy.y;
+    tank.stats.health = 10;
+    tank.x = healer.x;
+    tank.y = healer.y;
+    expect(world.tryCommand(enemy.x, enemy.y)).toBe(true);
+    healer.cooldown = 0;
+    const fx = act(world.units, healer);
+    expect(fx[0] && !isHealFx(fx[0]) && fx[0].targetId).toBe(enemy.id);
+    expect(tank.stats.health).toBe(10);
+  });
+
+  it("tank click on a friendly is not a heal order", () => {
+    const world = new World();
+    const tank = world.units.find((u) => u.role === "tank")!;
+    const other = world.units.find((u) => u.role === "dps")!;
+    tank.selected = true;
+    expect(world.tryCommand(other.x, other.y)).toBe(false);
+    expect(tank.order).toBeNull();
+  });
+
+  it("tank click on an enemy sets an attack order even with auto-attack off", () => {
+    const world = new World();
+    const tank = world.units.find((u) => u.role === "tank")!;
+    world.spawnEnemy();
+    const enemy = world.units.find((u) => u.side === "enemy")!;
+    tank.selected = true;
+    tank.autoAttack = false;
+    tank.x = enemy.x;
+    tank.y = enemy.y;
+    expect(world.tryCommand(enemy.x, enemy.y)).toBe(true);
+    tank.cooldown = 0;
+    const fx = act(world.units, tank);
+    expect(fx[0] && !isHealFx(fx[0]) && fx[0].targetId).toBe(enemy.id);
+  });
+
+  it("a move order clears a click command", () => {
+    const world = new World();
+    const dps = world.units.find((u) => u.role === "dps")!;
+    world.spawnEnemy();
+    const enemy = world.units.find((u) => u.side === "enemy")!;
+    dps.selected = true;
+    world.tryCommand(enemy.x, enemy.y);
+    expect(dps.order?.kind).toBe("attack");
+    world.orderMove(dps.x + 80, dps.y);
+    expect(dps.order).toBeNull();
+  });
 });
 
 describe("occupancy", () => {

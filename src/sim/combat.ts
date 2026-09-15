@@ -145,7 +145,6 @@ function swing(u: SimUnit, target: SimUnit, units: SimUnit[]): HitFx[] {
   return fx;
 }
 
-/** Instant heal for the view: bolt from healer to target, then floating `+amount`. */
 export type HealFx = {
   healerId: string;
   targetId: string;
@@ -155,6 +154,32 @@ export type HealFx = {
   toX: number;
   toY: number;
 };
+
+function applyHeal(healer: SimUnit, target: SimUnit): HealFx | null {
+  healer.stats.mana -= HEAL_MANA_COST;
+  const before = target.stats.health;
+  target.stats.health = Math.min(target.stats.maxHealth, target.stats.health + healer.stats.magicPower);
+  const amount = Math.round(target.stats.health - before);
+  if (amount <= 0) return null;
+  return {
+    healerId: healer.id,
+    targetId: target.id,
+    amount,
+    fromX: healer.x,
+    fromY: healer.y,
+    toX: target.x,
+    toY: target.y,
+  };
+}
+
+/** Heal a specific living damaged friendly in range. Spends mana, does not write threat. */
+export function tryHealTarget(healer: SimUnit, target: SimUnit): HealFx | null {
+  if (target.side !== "friendly" || target.stats.health <= 0) return null;
+  if (target.stats.health >= target.stats.maxHealth) return null;
+  if (healer.stats.mana < HEAL_MANA_COST) return null;
+  if (dist(healer, target) > attackRange(healer.rangeType)) return null;
+  return applyHeal(healer, target);
+}
 
 /** Lowest-hp damaged friendly in heal range. Spends mana, does not write threat. */
 export function tryHeal(units: SimUnit[], healer: SimUnit): HealFx | null {
@@ -167,25 +192,20 @@ export function tryHeal(units: SimUnit[], healer: SimUnit): HealFx | null {
     if (!best || f.stats.health < best.stats.health) best = f;
   }
   if (!best) return null;
-  healer.stats.mana -= HEAL_MANA_COST;
-  const before = best.stats.health;
-  best.stats.health = Math.min(best.stats.maxHealth, best.stats.health + healer.stats.magicPower);
-  const amount = Math.round(best.stats.health - before);
-  if (amount <= 0) return null;
-  return {
-    healerId: healer.id,
-    targetId: best.id,
-    amount,
-    fromX: healer.x,
-    fromY: healer.y,
-    toX: best.x,
-    toY: best.y,
-  };
+  return applyHeal(healer, best);
+}
+
+function orderedTarget(units: SimUnit[], u: SimUnit): SimUnit | null {
+  if (!u.order) return null;
+  const target = units.find((x) => x.id === u.order?.targetId && x.stats.health > 0) ?? null;
+  if (!target) u.order = null;
+  return target;
 }
 
 /**
  * One clock tick while idle. Enemies melee their threat target in reach.
- * Healers heal first (even if auto-attack is off), then weaker auto-attack.
+ * A click order beats auto-acquire: heal that ally, or swing that enemy (even if auto-attack is off).
+ * Healers without an order still heal first, then weaker auto-attack.
  * Tank swings cleave nearby enemies at half power (full tank threat each).
  */
 export function act(units: SimUnit[], u: SimUnit): ActFx[] {
@@ -193,6 +213,20 @@ export function act(units: SimUnit[], u: SimUnit): ActFx[] {
     const target = enemyTarget(units, u);
     if (!target || !canAttack(u, target)) return [];
     return swing(u, target, units);
+  }
+  const ordered = orderedTarget(units, u);
+  if (u.order?.kind === "heal") {
+    if (!ordered) return [];
+    const heal = tryHealTarget(u, ordered);
+    if (heal) {
+      u.cooldown = cooldownMs(u.stats.attackSpeed);
+      return [heal];
+    }
+    return [];
+  }
+  if (u.order?.kind === "attack") {
+    if (!ordered || ordered.side !== "enemy" || !canAttack(u, ordered)) return [];
+    return swing(u, ordered, units);
   }
   if (u.role === "healer") {
     const heal = tryHeal(units, u);

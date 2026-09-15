@@ -1,5 +1,15 @@
-import { COLS, makeStats, MAX_FRIENDLIES, ROWS, TILE } from "./balance";
-import { act, canAttack, enemyTarget, isHealFx, living, regenMana, type HealFx, type HitFx } from "./combat";
+import { attackRange, COLS, makeStats, MAX_FRIENDLIES, ROWS, TILE } from "./balance";
+import {
+  act,
+  canAttack,
+  dist,
+  enemyTarget,
+  isHealFx,
+  living,
+  regenMana,
+  type HealFx,
+  type HitFx,
+} from "./combat";
 import {
   facingFrom,
   layoutSlots,
@@ -89,7 +99,29 @@ export class World {
   }
 
   orderMove(x: number, y: number): void {
+    for (const u of living(this.units, "friendly")) {
+      if (u.selected) u.order = null;
+    }
     this.issuePaths(this.moveAssignments(x, y));
+  }
+
+  /**
+   * Click a unit with a selection: healers heal that friendly, everyone attacks that enemy.
+   * Returns false so the view can fall back to selection (empty ground, tanks on allies, nothing selected).
+   */
+  tryCommand(x: number, y: number): boolean {
+    const selected = living(this.units, "friendly").filter((u) => u.selected);
+    if (selected.length === 0) return false;
+    const hit = this.unitAt(x, y, "enemy") ?? this.unitAt(x, y, "friendly");
+    if (!hit) return false;
+    if (hit.side === "enemy") {
+      for (const u of selected) u.order = { kind: "attack", targetId: hit.id };
+      return true;
+    }
+    const healers = selected.filter((u) => u.role === "healer");
+    if (healers.length === 0) return false;
+    for (const u of healers) u.order = { kind: "heal", targetId: hit.id };
+    return true;
   }
 
   /**
@@ -129,6 +161,7 @@ export class World {
     this.resolveCoincident();
     this.purgeDead();
     this.updateChase();
+    this.updateOrders();
   }
 
   /** Drain heal bolts spawned this tick for the view. */
@@ -183,6 +216,7 @@ export class World {
       selected: false,
       cooldown: 0,
       path: [],
+      order: null,
       threat: new Map(),
       x: center.x,
       y: center.y,
@@ -313,7 +347,41 @@ export class World {
   }
 
   private friendlyAt(x: number, y: number): SimUnit | undefined {
-    return living(this.units, "friendly").find((u) => Math.hypot(u.x - x, u.y - y) < 16);
+    return this.unitAt(x, y, "friendly");
+  }
+
+  private unitAt(x: number, y: number, side?: Side): SimUnit | undefined {
+    let best: SimUnit | undefined;
+    let bestD = 16;
+    for (const u of living(this.units, side)) {
+      const d = Math.hypot(u.x - x, u.y - y);
+      if (d < bestD) {
+        bestD = d;
+        best = u;
+      }
+    }
+    return best;
+  }
+
+  /** Walk into heal/attack range, then stand and let `act` spend the clock. */
+  private updateOrders(): void {
+    for (const u of living(this.units, "friendly")) {
+      if (!u.order) continue;
+      const target = this.units.find((x) => x.id === u.order?.targetId && x.stats.health > 0);
+      if (!target) {
+        u.order = null;
+        continue;
+      }
+      const inRange =
+        u.order.kind === "heal"
+          ? dist(u, target) <= attackRange(u.rangeType)
+          : canAttack(u, target);
+      if (inRange) {
+        u.path = [];
+        continue;
+      }
+      u.path = pathToPoint(this.blocked, { x: u.x, y: u.y }, { x: target.x, y: target.y });
+    }
   }
 
   private purgeDead(): void {

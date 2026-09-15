@@ -90,7 +90,7 @@ export class RaidScene extends Phaser.Scene {
       const dy = p.worldY - this.boxStart.y;
       if (Math.hypot(dx, dy) > 8) {
         this.world.selectBox(this.boxStart.x, this.boxStart.y, p.worldX, p.worldY, this.shift);
-      } else {
+      } else if (this.shift || !this.world.tryCommand(p.worldX, p.worldY)) {
         this.world.selectClick(p.worldX, p.worldY, this.shift);
       }
       this.boxStart = null;
