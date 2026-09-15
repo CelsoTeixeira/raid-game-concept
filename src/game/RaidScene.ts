@@ -134,7 +134,7 @@ export class RaidScene extends Phaser.Scene {
         this.act(u);
       }
     }
-    this.spreadStackedFriendlies();
+    this.spreadStackedUnits();
     this.purgeDead();
     this.updateEnemyChase();
     this.redrawUnits();
@@ -180,11 +180,12 @@ export class RaidScene extends Phaser.Scene {
   }
 
   private spawnEnemy(): void {
-    const open: GridPoint[] = [];
-    for (let r = 2; r < ROWS - 2; r++) {
-      if (!this.blocked[r][COLS - 2]) open.push({ c: COLS - 2, r });
-    }
-    const spot = open[Math.floor(Math.random() * open.length)] ?? { c: COLS - 2, r: 8 };
+    const seed: GridPoint = {
+      c: COLS - 2,
+      r: 2 + Math.floor(Math.random() * (ROWS - 4)),
+    };
+    const spot =
+      nearestOpen(this.blocked, seed, (c, r) => this.unitStoppedOn(c, r, "")) ?? seed;
     this.addUnit("enemy", "dps", "melee", spot.c, spot.r);
   }
 
@@ -289,7 +290,7 @@ export class RaidScene extends Phaser.Scene {
     const selected = this.livingFriendlies().filter((u) => u.selected);
     const out: { unit: RaidUnit; goal: GridPoint }[] = [];
     const reserved = new Set<string>();
-    for (const u of this.livingFriendlies()) {
+    for (const u of this.livingUnits()) {
       if (u.selected) continue;
       if (u.path.length > 0) continue;
       const p = this.worldToGrid(u.body.x, u.body.y);
@@ -316,16 +317,16 @@ export class RaidScene extends Phaser.Scene {
       u.body.x = next.x;
       u.body.y = next.y;
       u.path.shift();
-      if (u.path.length === 0 && u.side === "friendly") this.unstickFriendly(u);
+      if (u.path.length === 0) this.unstickUnit(u);
       return;
     }
     u.body.x += (dx / dist) * step;
     u.body.y += (dy / dist) * step;
   }
 
-  private spreadStackedFriendlies(): void {
+  private spreadStackedUnits(): void {
     const buckets = new Map<string, RaidUnit[]>();
-    for (const u of this.livingFriendlies()) {
+    for (const u of this.livingUnits()) {
       if (u.path.length > 0) continue;
       const p = this.worldToGrid(u.body.x, u.body.y);
       const k = `${p.c},${p.r}`;
@@ -335,22 +336,20 @@ export class RaidScene extends Phaser.Scene {
     }
     for (const stacked of buckets.values()) {
       if (stacked.length < 2) continue;
-      for (const extra of stacked.slice(1)) this.unstickFriendly(extra);
+      for (const extra of stacked.slice(1)) this.unstickUnit(extra);
     }
   }
 
-  private unstickFriendly(u: RaidUnit): void {
+  private unstickUnit(u: RaidUnit): void {
     const here = this.worldToGrid(u.body.x, u.body.y);
-    if (!this.friendlyStoppedOn(here.c, here.r, u.id)) return;
-    const free = nearestOpen(this.blocked, here, (c, r) =>
-      this.friendlyStoppedOn(c, r, u.id),
-    );
+    if (!this.unitStoppedOn(here.c, here.r, u.id)) return;
+    const free = nearestOpen(this.blocked, here, (c, r) => this.unitStoppedOn(c, r, u.id));
     if (!free) return;
     u.path = findPath(this.blocked, here, free);
   }
 
-  private friendlyStoppedOn(c: number, r: number, exceptId: string): boolean {
-    return this.livingFriendlies().some((other) => {
+  private unitStoppedOn(c: number, r: number, exceptId: string): boolean {
+    return this.livingUnits().some((other) => {
       if (other.id === exceptId || other.path.length > 0) return false;
       const p = this.worldToGrid(other.body.x, other.body.y);
       return p.c === c && p.r === r;
@@ -424,6 +423,12 @@ export class RaidScene extends Phaser.Scene {
   }
 
   private updateEnemyChase(): void {
+    const reserved = new Set<string>();
+    for (const u of this.livingUnits()) {
+      if (u.path.length > 0) continue;
+      const p = this.worldToGrid(u.body.x, u.body.y);
+      reserved.add(`${p.c},${p.r}`);
+    }
     for (const u of this.units) {
       if (u.side !== "enemy" || u.stats.health <= 0) continue;
       if (u.path.length > 0) continue;
@@ -431,7 +436,11 @@ export class RaidScene extends Phaser.Scene {
       if (!target) continue;
       if (this.dist(u, target) <= attackRange("melee")) continue;
       const start = this.worldToGrid(u.body.x, u.body.y);
-      const goal = this.worldToGrid(target.body.x, target.body.y);
+      reserved.delete(`${start.c},${start.r}`);
+      const around = this.worldToGrid(target.body.x, target.body.y);
+      const goal =
+        nearestOpen(this.blocked, around, (c, r) => reserved.has(`${c},${r}`)) ?? start;
+      reserved.add(`${goal.c},${goal.r}`);
       u.path = findPath(this.blocked, start, goal);
     }
   }
@@ -460,6 +469,10 @@ export class RaidScene extends Phaser.Scene {
 
   private livingFriendlies(): RaidUnit[] {
     return this.units.filter((u) => u.side === "friendly" && u.stats.health > 0);
+  }
+
+  private livingUnits(): RaidUnit[] {
+    return this.units.filter((u) => u.stats.health > 0);
   }
 
   private purgeDead(): void {
