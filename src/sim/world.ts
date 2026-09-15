@@ -1,8 +1,8 @@
-import { COLS, makeStats, MAX_FRIENDLIES, ROWS, TILE, attackRange } from "./balance";
-import { act, enemyTarget, living, type HealFx } from "./combat";
-import { gridCenter, tileKey, worldToGrid, type GridPoint } from "./grid";
+import { COLS, makeStats, MAX_FRIENDLIES, ROWS, TILE } from "./balance";
+import { act, canAttack, enemyTarget, isHealFx, living, type HealFx, type HitFx } from "./combat";
+import { cardinalNeighbors, gridCenter, tileKey, worldToGrid, type GridPoint } from "./grid";
 import { createBlocked } from "./map";
-import { findPath, nearestOpen } from "./path";
+import { findPath, inBounds, nearestOpen } from "./path";
 import type { HudState, RangeType, Role, Side, UnitSnapshot } from "./types";
 import type { MoveAssign, SimUnit } from "./unit";
 
@@ -24,6 +24,7 @@ export class World {
   blocked: boolean[][] = createBlocked();
   private nextId = 1;
   private heals: HealFx[] = [];
+  private hits: HitFx[] = [];
 
   constructor() {
     this.spawnDefaultFriendlies();
@@ -33,6 +34,7 @@ export class World {
     this.units = [];
     this.nextId = 1;
     this.heals = [];
+    this.hits = [];
     this.spawnDefaultFriendlies();
   }
 
@@ -110,8 +112,10 @@ export class World {
       this.stepMove(u, delta);
       u.cooldown = Math.max(0, u.cooldown - delta);
       if (u.cooldown <= 0 && u.path.length === 0) {
-        const heal = act(this.units, u);
-        if (heal) this.heals.push(heal);
+        const fx = act(this.units, u);
+        if (!fx) continue;
+        if (isHealFx(fx)) this.heals.push(fx);
+        else this.hits.push(fx);
       }
     }
     this.spreadStacked();
@@ -123,6 +127,12 @@ export class World {
   takeHeals(): HealFx[] {
     const out = this.heals;
     this.heals = [];
+    return out;
+  }
+
+  takeHits(): HitFx[] {
+    const out = this.hits;
+    this.hits = [];
     return out;
   }
 
@@ -230,7 +240,7 @@ export class World {
     });
   }
 
-  /** Idle enemies path to a unique tile around their threat target, melee range excluded. */
+  /** Idle enemies path onto an adjacent tile of their threat target. */
   private updateEnemyChase(): void {
     const reserved = new Set<string>();
     for (const u of living(this.units)) {
@@ -243,15 +253,30 @@ export class World {
       if (u.path.length > 0) continue;
       const target = enemyTarget(this.units, u);
       if (!target) continue;
-      if (Math.hypot(u.x - target.x, u.y - target.y) <= attackRange("melee")) continue;
+      if (canAttack(u, target)) continue;
       const start = this.toGrid(u);
       reserved.delete(tileKey(start.c, start.r));
       const around = this.toGrid(target);
-      const goal =
-        nearestOpen(this.blocked, around, (c, r) => reserved.has(tileKey(c, r))) ?? start;
+      const goal = this.meleeApproach(around, start, reserved);
       reserved.add(tileKey(goal.c, goal.r));
       u.path = findPath(this.blocked, start, goal);
     }
+  }
+
+  /** Prefer a free cardinal neighbor of the target; never stop on the target's tile. */
+  private meleeApproach(target: GridPoint, from: GridPoint, reserved: Set<string>): GridPoint {
+    const taken = (c: number, r: number) =>
+      reserved.has(tileKey(c, r)) || (c === target.c && r === target.r);
+    const spots = cardinalNeighbors(target).filter(
+      (p) => inBounds(p.c, p.r, COLS, ROWS) && !this.blocked[p.r][p.c] && !taken(p.c, p.r),
+    );
+    if (spots.length > 0) {
+      spots.sort(
+        (a, b) => Math.abs(a.c - from.c) + Math.abs(a.r - from.r) - (Math.abs(b.c - from.c) + Math.abs(b.r - from.r)),
+      );
+      return spots[0];
+    }
+    return nearestOpen(this.blocked, from, (c, r) => taken(c, r)) ?? from;
   }
 
   private friendlyAt(x: number, y: number): SimUnit | undefined {

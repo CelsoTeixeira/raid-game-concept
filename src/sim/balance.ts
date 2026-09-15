@@ -1,6 +1,6 @@
 import type { RangeType, Role, Side, Stats } from "./types";
 
-/** Pixel size of one pathfinding cell. Combat ranges are world pixels, not tiles. */
+/** Pixel size of one pathfinding cell. Ranged combat uses world px; melee attacks use adjacent tiles. */
 export const TILE = 32;
 export const COLS = 30;
 export const ROWS = 18;

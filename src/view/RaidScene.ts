@@ -8,6 +8,7 @@ import { World } from "../sim/world";
 import { setRaidCommands } from "./commands";
 import { makeForm } from "./forms";
 import { HealFxLayer } from "./healFx";
+import { HitFxLayer } from "./hitFx";
 import { setHudState } from "./hudStore";
 
 type UnitView = {
@@ -30,6 +31,7 @@ export class RaidScene extends Phaser.Scene {
   private boxGfx!: Phaser.GameObjects.Graphics;
   private previewGfx!: Phaser.GameObjects.Graphics;
   private heals = new HealFxLayer(this);
+  private hits = new HitFxLayer(this);
   private moveHeld = false;
   private shift = false;
 
@@ -87,6 +89,7 @@ export class RaidScene extends Phaser.Scene {
       reset: () => {
         this.destroyViews();
         this.heals.clear();
+        this.hits.clear();
         this.world.reset();
         this.syncViews();
       },
@@ -103,6 +106,8 @@ export class RaidScene extends Phaser.Scene {
     this.world.tick(delta);
     for (const fx of this.world.takeHeals()) this.heals.spawn(fx);
     this.heals.tick(delta, this.world.units);
+    for (const fx of this.world.takeHits()) this.hits.spawn(fx);
+    this.hits.tick(delta, this.world.units);
     this.syncViews();
     this.redrawUnits();
     setHudState(this.world.hud());
@@ -137,7 +142,7 @@ export class RaidScene extends Phaser.Scene {
 
   private makeView(u: SimUnit): UnitView {
     const body = this.add.container(u.x, u.y).setDepth(5);
-    const shape = makeForm(this, u.side, u.role);
+    const shape = makeForm(this, u.side, u.role, u.rangeType);
     const ring = this.add.circle(0, 0, 18, 0x000000, 0).setStrokeStyle(2, 0xfef08a, 0);
     const hpBar = this.add.rectangle(0, -20, 22, 3, 0x22c55e).setOrigin(0.5);
     const manaBar = this.add.rectangle(0, -16, 22, 2, 0x38bdf8).setOrigin(0.5);

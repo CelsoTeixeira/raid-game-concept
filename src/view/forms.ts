@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import type { Role, Side } from "../sim/types";
+import type { RangeType, Role, Side } from "../sim/types";
 
 export const FORM = {
   enemy: 0xcc3333,
@@ -16,6 +16,7 @@ export function makeForm(
   scene: Phaser.Scene,
   side: Side,
   role: Role,
+  rangeType: RangeType,
 ): Phaser.GameObjects.Graphics {
   const g = scene.add.graphics();
   if (side === "enemy") {
@@ -28,7 +29,17 @@ export function makeForm(
     g.fillTriangle(0, -12, 12, 6, -12, 6);
     return g;
   }
-  g.fillStyle(role === "healer" ? FORM.healer : FORM.dps);
-  g.fillCircle(0, 0, 10);
+  if (role === "healer") {
+    g.fillStyle(FORM.healer);
+    g.fillCircle(0, 0, 10);
+    return g;
+  }
+  g.fillStyle(FORM.dps);
+  if (rangeType === "ranged") {
+    g.fillCircle(0, 0, 10);
+    return g;
+  }
+  g.fillTriangle(0, -11, 11, 0, 0, 11);
+  g.fillTriangle(0, -11, -11, 0, 0, 11);
   return g;
 }

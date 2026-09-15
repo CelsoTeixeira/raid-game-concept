@@ -1,17 +1,31 @@
 import {
   attackRange,
+  COLS,
   cooldownMs,
   DPS_THREAT,
   HEAL_MANA_COST,
   HEALER_THREAT,
   incomingDamage,
+  ROWS,
+  TILE,
   TANK_THREAT,
 } from "./balance";
+import { isCardinalAdjacent, worldToGrid } from "./grid";
 import type { Side } from "./types";
 import type { SimUnit } from "./unit";
 
 export function dist(a: SimUnit, b: SimUnit): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function tileOf(u: SimUnit) {
+  return worldToGrid(u.x, u.y, TILE, COLS, ROWS);
+}
+
+/** Melee: orthogonal neighbor tile. Ranged: pixel radius. */
+export function canAttack(attacker: SimUnit, defender: SimUnit): boolean {
+  if (attacker.rangeType === "ranged") return dist(attacker, defender) <= attackRange("ranged");
+  return isCardinalAdjacent(tileOf(attacker), tileOf(defender));
 }
 
 export function living(units: SimUnit[], side?: Side): SimUnit[] {
@@ -61,13 +75,66 @@ export function enemyTarget(units: SimUnit[], u: SimUnit): SimUnit | null {
 }
 
 /** Armor damage. Friendly→enemy hits add tank 3 / healer-or-dps 1 threat. */
-export function strike(attacker: SimUnit, defender: SimUnit): void {
-  defender.stats.health -= incomingDamage(attacker.stats.attackPower, defender.stats.armor);
+export function strike(attacker: SimUnit, defender: SimUnit): number {
+  const amount = incomingDamage(attacker.stats.attackPower, defender.stats.armor);
+  defender.stats.health -= amount;
   if (attacker.side === "friendly" && defender.side === "enemy") {
     const add =
       attacker.role === "tank" ? TANK_THREAT : attacker.role === "healer" ? HEALER_THREAT : DPS_THREAT;
     defender.threat.set(attacker.id, (defender.threat.get(attacker.id) ?? 0) + add);
   }
+  return amount;
+}
+
+export type HitFx = {
+  kind: "melee" | "ranged";
+  attackerId: string;
+  targetId: string;
+  amount: number;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+};
+
+export type ActFx = HealFx | HitFx;
+
+export function isHealFx(fx: ActFx): fx is HealFx {
+  return "healerId" in fx;
+}
+
+function hitFx(attacker: SimUnit, defender: SimUnit, amount: number): HitFx {
+  return {
+    kind: attacker.rangeType === "ranged" ? "ranged" : "melee",
+    attackerId: attacker.id,
+    targetId: defender.id,
+    amount,
+    fromX: attacker.x,
+    fromY: attacker.y,
+    toX: defender.x,
+    toY: defender.y,
+  };
+}
+
+function attackTarget(units: SimUnit[], from: SimUnit, side: Side): SimUnit | null {
+  let best: SimUnit | null = null;
+  let bestD = 1e9;
+  for (const u of units) {
+    if (u.side !== side || u.stats.health <= 0 || u.id === from.id) continue;
+    if (!canAttack(from, u)) continue;
+    const d = dist(from, u);
+    if (d <= bestD) {
+      bestD = d;
+      best = u;
+    }
+  }
+  return best;
+}
+
+function swing(u: SimUnit, target: SimUnit): HitFx {
+  const amount = strike(u, target);
+  u.cooldown = cooldownMs(u.stats.attackSpeed);
+  return hitFx(u, target, amount);
 }
 
 /** Instant heal for the view: bolt from healer to target, then floating `+amount`. */
@@ -109,17 +176,14 @@ export function tryHeal(units: SimUnit[], healer: SimUnit): HealFx | null {
 }
 
 /**
- * One clock tick while idle. Enemies melee their threat target.
+ * One clock tick while idle. Enemies melee their threat target (adjacent tile).
  * Healers heal first (even if auto-attack is off), then weaker auto-attack.
  */
-export function act(units: SimUnit[], u: SimUnit): HealFx | null {
+export function act(units: SimUnit[], u: SimUnit): ActFx | null {
   if (u.side === "enemy") {
     const target = enemyTarget(units, u);
-    if (!target) return null;
-    if (dist(u, target) > attackRange("melee")) return null;
-    strike(u, target);
-    u.cooldown = cooldownMs(u.stats.attackSpeed);
-    return null;
+    if (!target || !canAttack(u, target)) return null;
+    return swing(u, target);
   }
   if (u.role === "healer") {
     const heal = tryHeal(units, u);
@@ -129,9 +193,7 @@ export function act(units: SimUnit[], u: SimUnit): HealFx | null {
     }
   }
   if (!u.autoAttack) return null;
-  const target = nearestLiving(units, u, "enemy", attackRange(u.rangeType));
+  const target = attackTarget(units, u, "enemy");
   if (!target) return null;
-  strike(u, target);
-  u.cooldown = cooldownMs(u.stats.attackSpeed);
-  return null;
+  return swing(u, target);
 }

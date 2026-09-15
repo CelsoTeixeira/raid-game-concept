@@ -19,3 +19,19 @@ export function worldToGrid(x: number, y: number, tile: number, cols: number, ro
 export function gridCenter(p: GridPoint, tile: number): { x: number; y: number } {
   return { x: p.c * tile + tile / 2, y: p.r * tile + tile / 2 };
 }
+
+export const CARDINALS: Array<[number, number]> = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
+
+/** 4-direction neighbors. Melee swing range is this, not a pixel radius. */
+export function isCardinalAdjacent(a: GridPoint, b: GridPoint): boolean {
+  return Math.abs(a.c - b.c) + Math.abs(a.r - b.r) === 1;
+}
+
+export function cardinalNeighbors(p: GridPoint): GridPoint[] {
+  return CARDINALS.map(([dc, dr]) => ({ c: p.c + dc, r: p.r + dr }));
+}

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { incomingDamage } from "./balance";
-import { act, strike } from "./combat";
+import { act, canAttack, isHealFx, strike } from "./combat";
+import { TILE } from "./balance";
+import { gridCenter } from "./grid";
 import { World } from "./world";
 
 describe("combat numbers", () => {
@@ -34,7 +36,28 @@ describe("combat numbers", () => {
     expect(wounded.stats.health).toBeGreaterThan(10);
     expect(healer.cooldown).toBeGreaterThan(0);
     expect(fx?.amount).toBeGreaterThan(0);
-    expect(fx?.targetId).toBe(wounded.id);
+    expect(fx && isHealFx(fx) && fx.targetId).toBe(wounded.id);
+  });
+
+  it("melee only swings from an adjacent tile", () => {
+    const world = new World();
+    const tank = world.units.find((u) => u.role === "tank")!;
+    world.spawnEnemy();
+    const enemy = world.units.find((u) => u.side === "enemy")!;
+    const here = { c: Math.floor(tank.x / TILE), r: Math.floor(tank.y / TILE) };
+    const far = gridCenter({ c: here.c + 3, r: here.r }, TILE);
+    enemy.x = far.x;
+    enemy.y = far.y;
+    expect(canAttack(tank, enemy)).toBe(false);
+    tank.cooldown = 0;
+    expect(act(world.units, tank)).toBeNull();
+    const next = gridCenter({ c: here.c + 1, r: here.r }, TILE);
+    enemy.x = next.x;
+    enemy.y = next.y;
+    expect(canAttack(tank, enemy)).toBe(true);
+    tank.cooldown = 0;
+    const hit = act(world.units, tank);
+    expect(hit && !isHealFx(hit) && hit.kind).toBe("melee");
   });
 });
 
