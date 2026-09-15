@@ -1,3 +1,4 @@
+import type { CharacterAppearance } from "../appearance";
 import type { WorldPoint } from "./nav";
 import type { RangeType, Role, Side, Stats } from "./types";
 
@@ -15,6 +16,7 @@ export type SimUnit = {
   side: Side;
   role: Role;
   rangeType: RangeType;
+  appearance: CharacterAppearance;
   stats: Stats;
   /** Hold-fire: skips auto-attack. Healers still heal unless they have an attack order. */
   autoAttack: boolean;

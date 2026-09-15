@@ -64,9 +64,8 @@ export function FieldScreen({ group, onLeave }: { group: GroupMember[]; onLeave:
           </ul>
         )}
         <p className="legend">
-          Blue triangle tank. Yellow diamond melee dps, yellow circle ranged dps. Green circle
-          healer. Red square enemy. Melee swings only from the next tile. M melee / R ranged under
-          friendlies.
+          Group sprites use the organizer appearance. Green body enemies. Melee swings only from
+          the next tile. M melee / R ranged under friendlies.
         </p>
       </aside>
       <GameCanvas group={group} />

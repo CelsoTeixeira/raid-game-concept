@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { appearanceFrames, type SpriteFrame } from "../appearance";
 import { COLS, ROWS, TILE } from "../sim/balance";
 import { enemyTarget } from "../sim/combat";
 import type { GroupMember } from "../sim/group";
@@ -6,10 +7,19 @@ import { WALLS } from "../sim/map";
 import type { SimUnit } from "../sim/unit";
 import { World } from "../sim/world";
 import { setRaidCommands } from "./commands";
-import { FORM, makeForm } from "./forms";
 import { HealFxLayer } from "./healFx";
 import { HitFxLayer } from "./hitFx";
 import { setHudState } from "./hudStore";
+
+const CHARACTER_TEXTURE_KEY = "character-sheet";
+const CHARACTER_SHEET_URL = new URL("../aseets/roguelikeChar_transparent.png", import.meta.url).href;
+const CHARACTER_CELL_SIZE = 16;
+const CHARACTER_COLUMNS = 54;
+const SLOT_COLORS = {
+  tank: 0x3b82f6,
+  dps: 0xeab308,
+  healer: 0x22c55e,
+} as const;
 
 type UnitView = {
   id: string;
@@ -21,7 +31,7 @@ type UnitView = {
 };
 
 /**
- * Phaser adapter: input, forms, HUD. All rules live in {@link World}.
+ * Phaser adapter: input, sprites, HUD. All rules live in {@link World}.
  * Hold RMB to preview landings (`moveAssignments`); release to `orderMove`.
  */
 export class RaidScene extends Phaser.Scene {
@@ -42,6 +52,14 @@ export class RaidScene extends Phaser.Scene {
 
   init(data: { group: GroupMember[] }): void {
     this.world = new World(data.group);
+  }
+
+  preload(): void {
+    this.load.spritesheet(CHARACTER_TEXTURE_KEY, CHARACTER_SHEET_URL, {
+      frameWidth: CHARACTER_CELL_SIZE,
+      frameHeight: CHARACTER_CELL_SIZE,
+      spacing: 1,
+    });
   }
 
   create(): void {
@@ -164,14 +182,21 @@ export class RaidScene extends Phaser.Scene {
 
   private makeView(u: SimUnit): UnitView {
     const body = this.add.container(u.x, u.y).setDepth(5);
-    const shape = makeForm(this, u.side, u.role, u.rangeType);
+    const spriteLayers = appearanceFrames(u.appearance).map((frame) => this.makeSpriteLayer(frame));
     const ring = this.add.circle(0, 0, 18, 0x000000, 0).setStrokeStyle(2, 0xfef08a, 0);
     const hpBar = this.add.rectangle(0, -20, 22, 3, 0x22c55e).setOrigin(0.5);
     const manaBar = this.add.rectangle(0, -16, 22, 2, 0x38bdf8).setOrigin(0.5);
     manaBar.setVisible(u.stats.maxMana > 0);
     const label = this.add.text(0, 16, "", { fontSize: "9px", color: "#e5e7eb" }).setOrigin(0.5);
-    body.add([ring, shape, hpBar, manaBar, label]);
+    body.add([...spriteLayers, ring, hpBar, manaBar, label]);
     return { id: u.id, body, ring, hpBar, manaBar, label };
+  }
+
+  private makeSpriteLayer(frame: SpriteFrame): Phaser.GameObjects.Image {
+    return this.add
+      .image(0, 0, CHARACTER_TEXTURE_KEY, frame.row * CHARACTER_COLUMNS + frame.col)
+      .setOrigin(0.5)
+      .setDisplaySize(TILE, TILE);
   }
 
   private destroyViews(): void {
@@ -193,9 +218,9 @@ export class RaidScene extends Phaser.Scene {
   }
 
   private slotColor(u: SimUnit): number {
-    if (u.role === "tank") return FORM.tank;
-    if (u.role === "healer") return FORM.healer;
-    return FORM.dps;
+    if (u.role === "tank") return SLOT_COLORS.tank;
+    if (u.role === "healer") return SLOT_COLORS.healer;
+    return SLOT_COLORS.dps;
   }
 
   private clearPreview(): void {

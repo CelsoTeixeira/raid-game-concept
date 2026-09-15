@@ -1,3 +1,4 @@
+import { ENEMY_APPEARANCE, getMemberAppearance } from "../appearance";
 import { attackRange, COLS, makeStats, MAX_FRIENDLIES, ROWS, TILE } from "./balance";
 import {
   act,
@@ -27,6 +28,7 @@ import { nearestOpen } from "./path";
 import { DEFAULT_GROUP, type GroupMember } from "./group";
 import type { HudState, RangeType, Role, Side, UnitSnapshot } from "./types";
 import type { MoveAssign, SimUnit } from "./unit";
+import type { CharacterAppearance } from "../appearance";
 
 const GROUP_SPAWN_SLOTS: GridPoint[] = [
   { c: 5, r: 8 },
@@ -71,7 +73,7 @@ export class World {
       r: 2 + Math.floor(Math.random() * (ROWS - 4)),
     };
     const spot = nearestOpen(this.blocked, seed, () => false) ?? seed;
-    this.addUnit("enemy", "dps", "melee", spot.c, spot.r);
+    this.addUnit("enemy", "dps", "melee", spot.c, spot.r, ENEMY_APPEARANCE);
   }
 
   selectClick(x: number, y: number, shift: boolean): void {
@@ -211,11 +213,25 @@ export class World {
     for (const [index, member] of this.group.slice(0, MAX_FRIENDLIES).entries()) {
       const slot = GROUP_SPAWN_SLOTS[index];
       if (!slot) break;
-      this.addUnit("friendly", member.role, member.rangeType, slot.c, slot.r);
+      this.addUnit(
+        "friendly",
+        member.role,
+        member.rangeType,
+        slot.c,
+        slot.r,
+        getMemberAppearance(member, index),
+      );
     }
   }
 
-  private addUnit(side: Side, role: Role, rangeType: RangeType, c: number, r: number): void {
+  private addUnit(
+    side: Side,
+    role: Role,
+    rangeType: RangeType,
+    c: number,
+    r: number,
+    appearance: CharacterAppearance,
+  ): void {
     if (side === "friendly") {
       if (living(this.units, "friendly").length >= MAX_FRIENDLIES) return;
     }
@@ -225,6 +241,7 @@ export class World {
       side,
       role,
       rangeType: side === "enemy" || role === "tank" ? "melee" : rangeType,
+      appearance,
       stats: makeStats(side, role, rangeType),
       autoAttack: true,
       selected: false,

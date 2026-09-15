@@ -96,9 +96,22 @@ button:hover {
   color: #9ca3af;
   font-size: 12px;
 }
-.member-shape {
-  width: 48px;
-  height: 48px;
+.member-preview {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  display: block;
+  image-rendering: pixelated;
+}
+.member-sprite-layer {
+  position: absolute;
+  inset: 0;
+  width: 80px;
+  height: 80px;
+  display: block;
+  background-image: url("./aseets/roguelikeChar_transparent.png");
+  background-repeat: no-repeat;
+  background-size: 4590px 1015px;
 }
 ul {
   margin: 0;
@@ -111,4 +124,147 @@ ul {
   align-items: center;
   justify-content: center;
   background: #050505;
+}
+.group-screen {
+  justify-content: flex-start;
+  overflow: auto;
+}
+.group-workspace {
+  width: min(100%, 980px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  align-items: start;
+  gap: 28px;
+  text-align: left;
+}
+.group-roster,
+.group-bag {
+  width: 100%;
+  padding: 18px;
+  background: #0c0c0c;
+  border: 1px solid #374151;
+}
+.group-roster h2,
+.group-bag h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.group-roster .member-list {
+  margin-top: 16px;
+}
+.group-bag-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.group-bag-heading p,
+.group-bag-status,
+.group-bag-count {
+  margin: 6px 0 0;
+  color: #9ca3af;
+  font-size: 12px;
+}
+.group-bag-count {
+  margin-top: 2px;
+  white-space: nowrap;
+}
+.group-bag-board {
+  position: relative;
+  width: min(100%, 360px);
+  aspect-ratio: 1;
+  margin: 18px auto 0;
+  overflow: visible;
+  border: 1px solid #6b7280;
+  background-color: #111827;
+  background-image:
+    linear-gradient(to right, rgba(156, 163, 175, 0.35) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(156, 163, 175, 0.35) 1px, transparent 1px);
+  background-size: 20% 100%, 100% 20%;
+  touch-action: none;
+  user-select: none;
+}
+.group-bag-item,
+.group-bag-preview {
+  position: absolute;
+  box-sizing: border-box;
+}
+.group-bag-item {
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 4px;
+  overflow: hidden;
+  border: 1px solid #93c5fd;
+  background: #1e3a5f;
+  color: #eff6ff;
+  font-size: clamp(10px, 2.3vw, 12px);
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: normal;
+}
+.group-bag-item[data-item-id="potion"] {
+  background: #7f1d1d;
+}
+.group-bag-item[data-item-id="sword"] {
+  background: #374151;
+}
+.group-bag-item[data-item-id="shield"] {
+  background: #1e40af;
+}
+.group-bag-item[data-item-id="scroll"] {
+  background: #713f12;
+}
+.group-bag-item[data-item-id="torch"] {
+  background: #9a3412;
+}
+.group-bag-item[data-item-id="ring"] {
+  background: #854d0e;
+}
+.group-bag-item[data-item-id="herb"] {
+  background: #166534;
+}
+.group-bag-item[data-item-id="rations"] {
+  background: #365314;
+}
+.group-bag-item.is-dragging {
+  opacity: 0.55;
+}
+.group-bag-item:focus-visible {
+  z-index: 3;
+  outline: 3px solid #facc15;
+  outline-offset: 2px;
+}
+.group-bag-preview {
+  z-index: 1;
+  display: grid;
+  pointer-events: none;
+}
+.group-bag-preview span {
+  border: 2px solid;
+}
+.group-bag-preview.is-valid span {
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.28);
+}
+.group-bag-preview.is-invalid span {
+  border-color: #f87171;
+  background: rgba(248, 113, 113, 0.28);
+}
+.group-bag-status {
+  min-height: 32px;
+}
+@media (max-width: 720px) {
+  .group-workspace {
+    grid-template-columns: 1fr;
+  }
+  .group-roster,
+  .group-bag {
+    max-width: 520px;
+  }
 }

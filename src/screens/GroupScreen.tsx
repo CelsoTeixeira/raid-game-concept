@@ -1,31 +1,21 @@
 import type { GroupMember } from "../sim/group";
+import type { InventoryItem, InventoryPlacement } from "../sim/inventory";
+import { appearanceFrames, getMemberAppearance } from "../appearance";
+import { GroupBag } from "./GroupBag";
 
-function MemberShape({ member }: { member: GroupMember }) {
-  if (member.role === "tank") {
-    return (
-      <svg className="member-shape" viewBox="0 0 48 48" aria-hidden="true">
-        <polygon points="24,5 43,39 5,39" fill="#3b82f6" />
-      </svg>
-    );
-  }
-  if (member.role === "healer") {
-    return (
-      <svg className="member-shape" viewBox="0 0 48 48" aria-hidden="true">
-        <circle cx="24" cy="24" r="17" fill="#22c55e" />
-      </svg>
-    );
-  }
-  if (member.rangeType === "ranged") {
-    return (
-      <svg className="member-shape" viewBox="0 0 48 48" aria-hidden="true">
-        <circle cx="24" cy="24" r="17" fill="#eab308" />
-      </svg>
-    );
-  }
+function MemberPreview({ member, index }: { member: GroupMember; index: number }) {
+  const frames = appearanceFrames(getMemberAppearance(member, index));
+
   return (
-    <svg className="member-shape" viewBox="0 0 48 48" aria-hidden="true">
-      <polygon points="24,5 43,24 24,43 5,24" fill="#eab308" />
-    </svg>
+    <span className="member-preview" aria-hidden="true">
+      {frames.map((frame, frameIndex) => (
+        <span
+          className="member-sprite-layer"
+          key={`${frame.col}-${frame.row}-${frameIndex}`}
+          style={{ backgroundPosition: `-${frame.col * 85}px -${frame.row * 85}px` }}
+        />
+      ))}
+    </span>
   );
 }
 
@@ -35,25 +25,35 @@ function roleLabel(role: GroupMember["role"]): string {
 
 export function GroupScreen({
   group,
+  bag,
   onBack,
   onEnterField,
+  onMoveBagItem,
 }: {
   group: GroupMember[];
+  bag: InventoryItem[];
   onBack: () => void;
   onEnterField: () => void;
+  onMoveBagItem: (itemId: string, placement: InventoryPlacement) => void;
 }) {
   return (
-    <main className="screen">
+    <main className="screen group-screen">
       <h1>Your group</h1>
       <p>Default group for 5-man content</p>
-      <div className="member-list">
-        {group.map((member, index) => (
-          <article className="member-card" key={`${member.role}-${member.rangeType}-${index}`}>
-            <MemberShape member={member} />
-            <strong>{roleLabel(member.role)}</strong>
-            <span>{member.rangeType === "melee" ? "Melee" : "Ranged"}</span>
-          </article>
-        ))}
+      <div className="group-workspace">
+        <section className="group-roster" aria-labelledby="group-roster-title">
+          <h2 id="group-roster-title">Roster</h2>
+          <div className="member-list">
+            {group.map((member, index) => (
+              <article className="member-card" key={`${member.role}-${member.rangeType}-${index}`}>
+                <MemberPreview member={member} index={index} />
+                <strong>{roleLabel(member.role)}</strong>
+                <span>{member.rangeType === "melee" ? "Melee" : "Ranged"}</span>
+              </article>
+            ))}
+          </div>
+        </section>
+        <GroupBag items={bag} onMoveItem={onMoveBagItem} />
       </div>
       <div className="screen-actions">
         <button type="button" onClick={onBack}>
