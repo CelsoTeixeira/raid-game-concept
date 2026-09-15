@@ -6,6 +6,7 @@ const empty: HudState = {
   friendlyAlive: 0,
   enemyAlive: 0,
   threatLines: [],
+  formation: "raid",
 };
 
 let state: HudState = empty;

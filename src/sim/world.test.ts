@@ -96,22 +96,96 @@ describe("combat numbers", () => {
 });
 
 describe("occupancy", () => {
-  it("group move assigns unique landing tiles", () => {
+  it("group move assigns unique world goals", () => {
     const world = new World();
     const tanks = world.units.filter((u) => u.role === "tank");
     for (const u of tanks) u.selected = true;
-    const dest = { x: tanks[0].x, y: tanks[0].y };
-    const goals = world.moveAssignments(dest.x, dest.y).map((a) => `${a.goal.c},${a.goal.r}`);
+    const dest = { x: tanks[0].x + 80, y: tanks[0].y };
+    const goals = world.moveAssignments(dest.x, dest.y).map((a) => `${a.goal.x},${a.goal.y}`);
     expect(new Set(goals).size).toBe(goals.length);
   });
 
-  it("idle extras unstick off a shared tile", () => {
+  it("solo ranged lands on the click", () => {
+    const world = new World();
+    world.setFormation("raid");
+    const ranged = world.units.find((u) => u.role === "dps" && u.rangeType === "ranged")!;
+    ranged.selected = true;
+    const click = { x: 400, y: 300 };
+    const [assign] = world.moveAssignments(click.x, click.y);
+    expect(assign.goal.x).toBeCloseTo(click.x, 0);
+    expect(assign.goal.y).toBeCloseTo(click.y, 0);
+  });
+
+  it("raid pack centroid sits on the click", () => {
+    const world = new World();
+    world.setFormation("raid");
+    for (const u of world.units) {
+      if (u.side === "friendly") u.selected = true;
+    }
+    const click = { x: 400, y: 300 };
+    const assigns = world.moveAssignments(click.x, click.y);
+    const mx = assigns.reduce((s, a) => s + a.goal.x, 0) / assigns.length;
+    const my = assigns.reduce((s, a) => s + a.goal.y, 0) / assigns.length;
+    expect(mx).toBeCloseTo(click.x, 5);
+    expect(my).toBeCloseTo(click.y, 5);
+  });
+
+  it("raid puts tanks ahead of ranged along the click", () => {
+    const world = new World();
+    world.setFormation("raid");
+    const friendlies = world.units.filter((u) => u.side === "friendly");
+    for (const u of friendlies) u.selected = true;
+    const click = { x: 400, y: 300 };
+    const cx = friendlies.reduce((s, u) => s + u.x, 0) / friendlies.length;
+    const cy = friendlies.reduce((s, u) => s + u.y, 0) / friendlies.length;
+    const fx = click.x - cx;
+    const fy = click.y - cy;
+    const assigns = world.moveAssignments(click.x, click.y);
+    const tank = assigns.find((a) => a.unit.role === "tank")!;
+    const ranged = assigns.find((a) => a.unit.rangeType === "ranged")!;
+    const along = (x: number, y: number) => (x - click.x) * fx + (y - click.y) * fy;
+    expect(along(tank.goal.x, tank.goal.y)).toBeGreaterThan(along(ranged.goal.x, ranged.goal.y));
+  });
+
+  it("idle extras do not rest on the same point", () => {
     const world = new World();
     const a = world.units[0];
     const b = world.units[1];
     b.x = a.x;
     b.y = a.y;
     world.tick(16);
-    expect(b.path.length).toBeGreaterThan(0);
+    expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(1);
+  });
+
+  it("nearby idle units are not pushed apart", () => {
+    const world = new World();
+    const a = world.units[0];
+    const b = world.units[1];
+    b.x = a.x + 10;
+    b.y = a.y;
+    const bx = b.x;
+    const by = b.y;
+    world.tick(16);
+    expect(b.x).toBeCloseTo(bx, 5);
+    expect(b.y).toBeCloseTo(by, 5);
+  });
+
+  it("enemy pack chase uses unique formation goals", () => {
+    const world = new World();
+    const tank = world.units.find((u) => u.role === "tank")!;
+    world.spawnEnemy();
+    world.spawnEnemy();
+    const enemies = world.units.filter((u) => u.side === "enemy");
+    const far = { x: tank.x + 200, y: tank.y };
+    for (const e of enemies) {
+      e.x = far.x;
+      e.y = far.y;
+    }
+    world.tick(16);
+    const goals = enemies.map((e) => {
+      const last = e.path[e.path.length - 1];
+      return last ? `${last.x},${last.y}` : `${e.x},${e.y}`;
+    });
+    expect(new Set(goals).size).toBe(goals.length);
   });
 });

@@ -26,28 +26,6 @@ export function lineClear(
   return true;
 }
 
-/**
- * Even ring around `origin` at `radius`. Drops slots that land in a wall.
- * Enemies stand here instead of snapping to tile centers.
- */
-export function ringSlots(
-  blocked: boolean[][],
-  origin: WorldPoint,
-  radius: number,
-  count: number,
-): WorldPoint[] {
-  const n = Math.max(count, 1);
-  const out: WorldPoint[] = [];
-  for (let i = 0; i < n; i++) {
-    const a = (Math.PI * 2 * i) / n - Math.PI / 2;
-    const p = { x: origin.x + Math.cos(a) * radius, y: origin.y + Math.sin(a) * radius };
-    const g = worldToGrid(p.x, p.y, TILE, COLS, ROWS);
-    if (!inBounds(g.c, g.r, COLS, ROWS) || blocked[g.r][g.c]) continue;
-    out.push(p);
-  }
-  return out;
-}
-
 /** A* around walls, then the exact world slot as the last point. */
 export function pathToPoint(
   blocked: boolean[][],

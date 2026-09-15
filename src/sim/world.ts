@@ -1,9 +1,19 @@
 import { COLS, makeStats, MAX_FRIENDLIES, ROWS, TILE } from "./balance";
 import { act, canAttack, enemyTarget, isHealFx, living, regenMana, type HealFx, type HitFx } from "./combat";
-import { gridCenter, tileKey, worldToGrid, type GridPoint } from "./grid";
+import {
+  facingFrom,
+  layoutSlots,
+  nextFormation,
+  rankOf,
+  snapWalkable,
+  slotLabel,
+  type Facing,
+  type FormationKind,
+} from "./formation";
+import { gridCenter, worldToGrid, type GridPoint } from "./grid";
 import { createBlocked } from "./map";
-import { gridPathToWorld, pathToPoint, ringSlots } from "./nav";
-import { findPath, nearestOpen } from "./path";
+import { pathToPoint, type WorldPoint } from "./nav";
+import { nearestOpen } from "./path";
 import type { HudState, RangeType, Role, Side, UnitSnapshot } from "./types";
 import type { MoveAssign, SimUnit } from "./unit";
 
@@ -18,11 +28,14 @@ const ROSTER: Array<{ role: Role; rangeType: RangeType; c: number; r: number }> 
 
 /**
  * Phaser-free field: occupancy, orders, chase, combat clocks.
- * Two living units may path through the same tile; they must not *stop* on it.
+ * All units share world-space paths and formation slots. Friendlies take player orders;
+ * enemies issue the same move toward their target.
  */
 export class World {
   units: SimUnit[] = [];
   blocked: boolean[][] = createBlocked();
+  formation: FormationKind = "raid";
+  private facing: Facing = { fx: 1, fy: 0, rx: 0, ry: 1 };
   private nextId = 1;
   private heals: HealFx[] = [];
   private hits: HitFx[] = [];
@@ -36,6 +49,7 @@ export class World {
     this.nextId = 1;
     this.heals = [];
     this.hits = [];
+    this.formation = "raid";
     this.spawnDefaultFriendlies();
   }
 
@@ -44,7 +58,7 @@ export class World {
       c: COLS - 2,
       r: 2 + Math.floor(Math.random() * (ROWS - 4)),
     };
-    const spot = nearestOpen(this.blocked, seed, (c, r) => this.unitStoppedOn(c, r, "")) ?? seed;
+    const spot = nearestOpen(this.blocked, seed, () => false) ?? seed;
     this.addUnit("enemy", "dps", "melee", spot.c, spot.r);
   }
 
@@ -65,36 +79,28 @@ export class World {
     }
   }
 
+  cycleFormation(): FormationKind {
+    this.formation = nextFormation(this.formation);
+    return this.formation;
+  }
+
+  setFormation(kind: FormationKind): void {
+    this.formation = kind;
+  }
+
   orderMove(x: number, y: number): void {
-    for (const { unit, goal } of this.moveAssignments(x, y)) {
-      const start = this.toGrid(unit);
-      unit.path = gridPathToWorld(findPath(this.blocked, start, goal), TILE);
-    }
+    this.issuePaths(this.moveAssignments(x, y));
   }
 
   /**
-   * Lands each selected friendly on a unique free tile near the click.
-   * Preview and `orderMove` share this so the ghost matches the path.
+   * World-space slots for a pack. Preview and `orderMove` share this.
+   * Click is the center of the pack. Tanks stay toward the facing direction.
    */
   moveAssignments(x: number, y: number): MoveAssign[] {
-    const click = worldToGrid(x, y, TILE, COLS, ROWS);
     const selected = living(this.units, "friendly").filter((u) => u.selected);
-    const out: MoveAssign[] = [];
-    const reserved = new Set<string>();
-    for (const u of living(this.units)) {
-      if (u.selected) continue;
-      if (u.path.length > 0) continue;
-      const p = this.toGrid(u);
-      reserved.add(tileKey(p.c, p.r));
-    }
-    for (const u of selected) {
-      const start = this.toGrid(u);
-      const goal =
-        nearestOpen(this.blocked, click, (c, r) => reserved.has(tileKey(c, r))) ?? start;
-      reserved.add(tileKey(goal.c, goal.r));
-      out.push({ unit: u, goal });
-    }
-    return out;
+    const { assigns, face } = this.assignFormation(selected, { x, y }, this.formation, this.facing);
+    this.facing = face;
+    return assigns;
   }
 
   /** Flip auto-attack on the selection, or the whole raid if nothing is selected. */
@@ -106,7 +112,7 @@ export class World {
     for (const u of targets) u.autoAttack = !anyOn;
   }
 
-  /** No combat while a unit still has a path. After moves, unstick stacks then chase. */
+  /** No combat while a unit still has a path. Units may overlap; only exact ties break. */
   tick(delta: number): void {
     for (const u of this.units) {
       if (u.stats.health <= 0) continue;
@@ -120,10 +126,9 @@ export class World {
         }
       }
     }
-    this.spreadStacked();
-    this.separateEnemies();
+    this.resolveCoincident();
     this.purgeDead();
-    this.updateEnemyChase();
+    this.updateChase();
   }
 
   /** Drain heal bolts spawned this tick for the view. */
@@ -153,6 +158,7 @@ export class World {
       friendlyAlive: living(this.units, "friendly").length,
       enemyAlive: livingE.length,
       threatLines,
+      formation: this.formation,
     };
   }
 
@@ -187,10 +193,6 @@ export class World {
     for (const u of this.units) u.selected = false;
   }
 
-  private toGrid(u: SimUnit): GridPoint {
-    return worldToGrid(u.x, u.y, TILE, COLS, ROWS);
-  }
-
   private stepMove(u: SimUnit, delta: number): void {
     if (u.path.length === 0) return;
     const next = u.path[0];
@@ -202,49 +204,49 @@ export class World {
       u.x = next.x;
       u.y = next.y;
       u.path.shift();
-      if (u.path.length === 0) this.unstick(u);
       return;
     }
     u.x += (dx / dist) * step;
     u.y += (dy / dist) * step;
   }
 
-  /** Idle extras on a shared tile path off; the first occupant stays. Enemies use the ring instead. */
-  private spreadStacked(): void {
-    const buckets = new Map<string, SimUnit[]>();
-    for (const u of living(this.units, "friendly")) {
-      if (u.path.length > 0) continue;
-      const p = this.toGrid(u);
-      const k = tileKey(p.c, p.r);
-      const list = buckets.get(k) ?? [];
-      list.push(u);
-      buckets.set(k, list);
-    }
-    for (const stacked of buckets.values()) {
-      if (stacked.length < 2) continue;
-      for (const extra of stacked.slice(1)) this.unstick(extra);
+  private issuePaths(assigns: MoveAssign[]): void {
+    for (const { unit, goal } of assigns) {
+      unit.path = pathToPoint(this.blocked, { x: unit.x, y: unit.y }, goal);
     }
   }
 
-  private unstick(u: SimUnit): void {
-    const here = this.toGrid(u);
-    if (!this.unitStoppedOn(here.c, here.r, u.id)) return;
-    const free = nearestOpen(this.blocked, here, (c, r) => this.unitStoppedOn(c, r, u.id));
-    if (!free) return;
-    u.path = gridPathToWorld(findPath(this.blocked, here, free), TILE);
+  /** Same slot layout for player orders and enemy chase. */
+  private assignFormation(
+    units: SimUnit[],
+    dest: WorldPoint,
+    kind: FormationKind,
+    fallback: Facing,
+  ): { assigns: MoveAssign[]; face: Facing } {
+    if (units.length === 0) return { assigns: [], face: fallback };
+    const cx = units.reduce((s, u) => s + u.x, 0) / units.length;
+    const cy = units.reduce((s, u) => s + u.y, 0) / units.length;
+    const face = facingFrom({ x: cx, y: cy }, dest, fallback);
+    const tanks = units.filter((u) => rankOf(u) === 0).sort((a, b) => a.id.localeCompare(b.id));
+    const melee = units.filter((u) => rankOf(u) === 1).sort((a, b) => a.id.localeCompare(b.id));
+    const ranged = units.filter((u) => rankOf(u) === 2).sort((a, b) => a.id.localeCompare(b.id));
+    const ordered = [...tanks, ...melee, ...ranged];
+    const slots = layoutSlots(kind, dest, face, tanks.length, melee.length, ranged.length).map((p) =>
+      snapWalkable(this.blocked, p),
+    );
+    this.uniqPoints(slots);
+    return {
+      face,
+      assigns: ordered.map((unit, i) => ({
+        unit,
+        goal: slots[i] ?? dest,
+        label: slotLabel(unit),
+      })),
+    };
   }
 
-  /** True if another *idle* living unit already occupies the cell. Movers do not count. */
-  private unitStoppedOn(c: number, r: number, exceptId: string): boolean {
-    return living(this.units).some((other) => {
-      if (other.id === exceptId || other.path.length > 0) return false;
-      const p = this.toGrid(other);
-      return p.c === c && p.r === r;
-    });
-  }
-
-  /** Idle enemies path to a unique world-space slot on a ring around their target. */
-  private updateEnemyChase(): void {
+  /** Enemies order the same formation move toward their target. */
+  private updateChase(): void {
     const packs = new Map<string, SimUnit[]>();
     for (const u of living(this.units, "enemy")) {
       const target = enemyTarget(this.units, u);
@@ -260,44 +262,44 @@ export class World {
     for (const [targetId, pack] of packs) {
       const target = this.units.find((x) => x.id === targetId);
       if (!target) continue;
-      const slots = ringSlots(this.blocked, { x: target.x, y: target.y }, TILE, pack.length);
-      const claimed = new Set<number>();
-      for (const u of pack) {
-        let best = -1;
-        let bestD = 1e9;
-        for (let i = 0; i < slots.length; i++) {
-          if (claimed.has(i)) continue;
-          const d = Math.hypot(u.x - slots[i].x, u.y - slots[i].y);
-          if (d < bestD) {
-            bestD = d;
-            best = i;
-          }
-        }
-        const slot = best >= 0 ? slots[best] : { x: target.x + TILE, y: target.y };
-        if (best >= 0) claimed.add(best);
-        u.path = pathToPoint(this.blocked, { x: u.x, y: u.y }, slot);
-      }
+      const { assigns } = this.assignFormation(pack, { x: target.x, y: target.y }, "raid", {
+        fx: 1,
+        fy: 0,
+        rx: 0,
+        ry: 1,
+      });
+      this.issuePaths(assigns);
     }
   }
 
-  /** Soft radius so enemies fan around a body instead of stacking on a cell. */
-  private separateEnemies(): void {
-    const pack = living(this.units, "enemy");
-    const minD = 22;
+  /** Idle units may overlap. Only split if they rest on the same point. */
+  private resolveCoincident(): void {
+    const pack = living(this.units).filter((u) => u.path.length === 0);
     for (let i = 0; i < pack.length; i++) {
       for (let j = i + 1; j < pack.length; j++) {
         const a = pack[i];
         const b = pack[j];
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const d = Math.hypot(dx, dy);
-        if (d >= minD || d < 0.001) continue;
-        const push = (minD - d) / 2;
-        const nx = dx / d;
-        const ny = dy / d;
-        this.nudge(a, -nx * push, -ny * push);
-        this.nudge(b, nx * push, ny * push);
+        if (Math.hypot(b.x - a.x, b.y - a.y) >= 1) continue;
+        const ang = (j * 2.399) % (Math.PI * 2);
+        this.nudge(b, Math.cos(ang) * 8, Math.sin(ang) * 8);
       }
+    }
+  }
+
+  private uniqPoints(slots: { x: number; y: number }[]): void {
+    const seen = new Set<string>();
+    for (let i = 0; i < slots.length; i++) {
+      let p = slots[i];
+      let k = `${Math.round(p.x)},${Math.round(p.y)}`;
+      let n = 0;
+      while (seen.has(k) && n < 12) {
+        const ang = n * 2.399;
+        p = snapWalkable(this.blocked, { x: p.x + Math.cos(ang) * 8, y: p.y + Math.sin(ang) * 8 });
+        k = `${Math.round(p.x)},${Math.round(p.y)}`;
+        n += 1;
+      }
+      seen.add(k);
+      slots[i] = p;
     }
   }
 

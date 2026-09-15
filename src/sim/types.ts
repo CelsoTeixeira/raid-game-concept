@@ -37,4 +37,5 @@ export type HudState = {
   friendlyAlive: number;
   enemyAlive: number;
   threatLines: string[];
+  formation: string;
 };

@@ -16,6 +16,9 @@ export function App() {
         <h1>Raid POC</h1>
         <p className="hint">
           Left click select. Drag box. Shift add. Hold right click to preview move, release to go.
+          While previewing: F or mouse wheel cycles formation (raid / line / box). 1 raid, 2 line, 3
+          box. Tanks at the click, melee behind, ranged at the back. Labels: T tank, Dm/Dr dps, Hm/Hr
+          healer.
         </p>
         <div className="row">
           <button type="button" onClick={() => run("spawnEnemy")}>
@@ -29,7 +32,7 @@ export function App() {
           </button>
         </div>
         <p>
-          Alive {hud.friendlyAlive} / enemies {hud.enemyAlive}
+          Alive {hud.friendlyAlive} / enemies {hud.enemyAlive} · formation {hud.formation}
         </p>
         <h2>Selected</h2>
         {hud.selected.length === 0 ? (

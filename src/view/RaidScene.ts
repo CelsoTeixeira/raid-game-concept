@@ -1,12 +1,11 @@
 import Phaser from "phaser";
 import { COLS, ROWS, TILE } from "../sim/balance";
 import { enemyTarget } from "../sim/combat";
-import { gridCenter } from "../sim/grid";
 import { WALLS } from "../sim/map";
 import type { SimUnit } from "../sim/unit";
 import { World } from "../sim/world";
 import { setRaidCommands } from "./commands";
-import { makeForm } from "./forms";
+import { FORM, makeForm } from "./forms";
 import { HealFxLayer } from "./healFx";
 import { HitFxLayer } from "./hitFx";
 import { setHudState } from "./hudStore";
@@ -30,6 +29,7 @@ export class RaidScene extends Phaser.Scene {
   private boxStart: Phaser.Math.Vector2 | null = null;
   private boxGfx!: Phaser.GameObjects.Graphics;
   private previewGfx!: Phaser.GameObjects.Graphics;
+  private previewLabels: Phaser.GameObjects.Text[] = [];
   private heals = new HealFxLayer(this);
   private hits = new HitFxLayer(this);
   private moveHeld = false;
@@ -52,6 +52,21 @@ export class RaidScene extends Phaser.Scene {
     this.input.keyboard?.on("keyup-SHIFT", () => {
       this.shift = false;
     });
+    this.input.keyboard?.on("keydown-F", () => {
+      if (this.moveHeld) this.world.cycleFormation();
+    });
+    this.input.keyboard?.on("keydown-ONE", () => {
+      if (this.moveHeld) this.world.setFormation("raid");
+    });
+    this.input.keyboard?.on("keydown-TWO", () => {
+      if (this.moveHeld) this.world.setFormation("line");
+    });
+    this.input.keyboard?.on("keydown-THREE", () => {
+      if (this.moveHeld) this.world.setFormation("box");
+    });
+    this.input.on("wheel", () => {
+      if (this.moveHeld) this.world.cycleFormation();
+    });
 
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
       if (p.rightButtonDown()) {
@@ -66,7 +81,7 @@ export class RaidScene extends Phaser.Scene {
       if (p.button === 2) {
         if (this.moveHeld) this.world.orderMove(p.worldX, p.worldY);
         this.moveHeld = false;
-        this.previewGfx.clear();
+        this.clearPreview();
         return;
       }
       if (p.button !== 0) return;
@@ -170,15 +185,41 @@ export class RaidScene extends Phaser.Scene {
     );
   }
 
-  private drawMovePreview(): void {
+  private slotColor(u: SimUnit): number {
+    if (u.role === "tank") return FORM.tank;
+    if (u.role === "healer") return FORM.healer;
+    return FORM.dps;
+  }
+
+  private clearPreview(): void {
     this.previewGfx.clear();
+    for (const t of this.previewLabels) t.destroy();
+    this.previewLabels = [];
+  }
+
+  private drawMovePreview(): void {
+    this.clearPreview();
     if (!this.moveHeld) return;
     const p = this.input.activePointer;
-    this.previewGfx.lineStyle(1, 0xffffff, 0.95);
-    for (const { unit, goal } of this.world.moveAssignments(p.worldX, p.worldY)) {
-      const dest = gridCenter(goal, TILE);
-      this.previewGfx.lineBetween(unit.x, unit.y, dest.x, dest.y);
-      this.previewGfx.strokeCircle(dest.x, dest.y, TILE * 0.42);
+    const assigns = this.world.moveAssignments(p.worldX, p.worldY);
+    const name = this.world.formation;
+    this.previewGfx.lineStyle(1, 0xfef08a, 0.85);
+    this.previewGfx.strokeCircle(p.worldX, p.worldY, 5);
+    const title = this.add
+      .text(p.worldX, p.worldY - 28, name, { fontSize: "11px", color: "#fef08a" })
+      .setOrigin(0.5)
+      .setDepth(22);
+    this.previewLabels.push(title);
+    for (const { unit, goal, label } of assigns) {
+      const color = this.slotColor(unit);
+      this.previewGfx.lineStyle(1, color, 0.95);
+      this.previewGfx.lineBetween(unit.x, unit.y, goal.x, goal.y);
+      this.previewGfx.strokeCircle(goal.x, goal.y, 12);
+      const tag = this.add
+        .text(goal.x, goal.y, label, { fontSize: "10px", color: "#fff", fontStyle: "bold" })
+        .setOrigin(0.5)
+        .setDepth(22);
+        this.previewLabels.push(tag);
     }
   }
 

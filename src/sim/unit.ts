@@ -1,8 +1,8 @@
-import type { GridPoint } from "./grid";
+import type { WorldPoint } from "./nav";
 import type { RangeType, Role, Side, Stats } from "./types";
 
 /**
- * Phaser-free unit. Occupancy uses idle tiles only (`path.length === 0`).
+ * Phaser-free unit.
  * `threat` is meaningful on enemies (attacker id → value). Friendlies keep an empty map.
  */
 export type SimUnit = {
@@ -16,15 +16,16 @@ export type SimUnit = {
   selected: boolean;
   /** Remaining ms on the single attack/heal clock. */
   cooldown: number;
-  /** Upcoming world points (tile centers for raid orders, ring slots for enemy chase). */
-  path: { x: number; y: number }[];
+  /** Upcoming world points. */
+  path: WorldPoint[];
   threat: Map<string, number>;
   x: number;
   y: number;
 };
 
-/** Unique landing tile for one selected unit in a group move / RMB preview. */
+/** World-space landing for a selected unit (preview and order share this). */
 export type MoveAssign = {
   unit: SimUnit;
-  goal: GridPoint;
+  goal: WorldPoint;
+  label: string;
 };
