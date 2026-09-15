@@ -1,5 +1,5 @@
 import { COLS, makeStats, MAX_FRIENDLIES, ROWS, TILE, attackRange } from "./balance";
-import { act, enemyTarget, living } from "./combat";
+import { act, enemyTarget, living, type HealFx } from "./combat";
 import { gridCenter, tileKey, worldToGrid, type GridPoint } from "./grid";
 import { createBlocked } from "./map";
 import { findPath, nearestOpen } from "./path";
@@ -23,6 +23,7 @@ export class World {
   units: SimUnit[] = [];
   blocked: boolean[][] = createBlocked();
   private nextId = 1;
+  private heals: HealFx[] = [];
 
   constructor() {
     this.spawnDefaultFriendlies();
@@ -31,6 +32,7 @@ export class World {
   reset(): void {
     this.units = [];
     this.nextId = 1;
+    this.heals = [];
     this.spawnDefaultFriendlies();
   }
 
@@ -107,11 +109,21 @@ export class World {
       if (u.stats.health <= 0) continue;
       this.stepMove(u, delta);
       u.cooldown = Math.max(0, u.cooldown - delta);
-      if (u.cooldown <= 0 && u.path.length === 0) act(this.units, u);
+      if (u.cooldown <= 0 && u.path.length === 0) {
+        const heal = act(this.units, u);
+        if (heal) this.heals.push(heal);
+      }
     }
     this.spreadStacked();
     this.purgeDead();
     this.updateEnemyChase();
+  }
+
+  /** Drain heal bolts spawned this tick for the view. */
+  takeHeals(): HealFx[] {
+    const out = this.heals;
+    this.heals = [];
+    return out;
   }
 
   hud(): HudState {

@@ -7,6 +7,7 @@ import type { SimUnit } from "../sim/unit";
 import { World } from "../sim/world";
 import { setRaidCommands } from "./commands";
 import { makeForm } from "./forms";
+import { HealFxLayer } from "./healFx";
 import { setHudState } from "./hudStore";
 
 type UnitView = {
@@ -28,6 +29,7 @@ export class RaidScene extends Phaser.Scene {
   private boxStart: Phaser.Math.Vector2 | null = null;
   private boxGfx!: Phaser.GameObjects.Graphics;
   private previewGfx!: Phaser.GameObjects.Graphics;
+  private heals = new HealFxLayer(this);
   private moveHeld = false;
   private shift = false;
 
@@ -84,6 +86,7 @@ export class RaidScene extends Phaser.Scene {
       toggleAutoAttack: () => this.world.toggleAutoAttack(),
       reset: () => {
         this.destroyViews();
+        this.heals.clear();
         this.world.reset();
         this.syncViews();
       },
@@ -98,6 +101,8 @@ export class RaidScene extends Phaser.Scene {
     this.drawBox();
     this.drawMovePreview();
     this.world.tick(delta);
+    for (const fx of this.world.takeHeals()) this.heals.spawn(fx);
+    this.heals.tick(delta, this.world.units);
     this.syncViews();
     this.redrawUnits();
     setHudState(this.world.hud());

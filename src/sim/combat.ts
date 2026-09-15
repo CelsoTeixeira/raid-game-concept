@@ -70,9 +70,20 @@ export function strike(attacker: SimUnit, defender: SimUnit): void {
   }
 }
 
+/** Instant heal for the view: bolt from healer to target, then floating `+amount`. */
+export type HealFx = {
+  healerId: string;
+  targetId: string;
+  amount: number;
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+};
+
 /** Lowest-hp damaged friendly in heal range. Spends mana, does not write threat. */
-export function tryHeal(units: SimUnit[], healer: SimUnit): boolean {
-  if (healer.stats.mana < HEAL_MANA_COST) return false;
+export function tryHeal(units: SimUnit[], healer: SimUnit): HealFx | null {
+  if (healer.stats.mana < HEAL_MANA_COST) return null;
   const range = attackRange(healer.rangeType);
   let best: SimUnit | null = null;
   for (const f of living(units, "friendly")) {
@@ -80,32 +91,47 @@ export function tryHeal(units: SimUnit[], healer: SimUnit): boolean {
     if (dist(healer, f) > range) continue;
     if (!best || f.stats.health < best.stats.health) best = f;
   }
-  if (!best) return false;
+  if (!best) return null;
   healer.stats.mana -= HEAL_MANA_COST;
+  const before = best.stats.health;
   best.stats.health = Math.min(best.stats.maxHealth, best.stats.health + healer.stats.magicPower);
-  return true;
+  const amount = Math.round(best.stats.health - before);
+  if (amount <= 0) return null;
+  return {
+    healerId: healer.id,
+    targetId: best.id,
+    amount,
+    fromX: healer.x,
+    fromY: healer.y,
+    toX: best.x,
+    toY: best.y,
+  };
 }
 
 /**
  * One clock tick while idle. Enemies melee their threat target.
  * Healers heal first (even if auto-attack is off), then weaker auto-attack.
  */
-export function act(units: SimUnit[], u: SimUnit): void {
+export function act(units: SimUnit[], u: SimUnit): HealFx | null {
   if (u.side === "enemy") {
     const target = enemyTarget(units, u);
-    if (!target) return;
-    if (dist(u, target) > attackRange("melee")) return;
+    if (!target) return null;
+    if (dist(u, target) > attackRange("melee")) return null;
     strike(u, target);
     u.cooldown = cooldownMs(u.stats.attackSpeed);
-    return;
+    return null;
   }
-  if (u.role === "healer" && tryHeal(units, u)) {
-    u.cooldown = cooldownMs(u.stats.attackSpeed);
-    return;
+  if (u.role === "healer") {
+    const heal = tryHeal(units, u);
+    if (heal) {
+      u.cooldown = cooldownMs(u.stats.attackSpeed);
+      return heal;
+    }
   }
-  if (!u.autoAttack) return;
+  if (!u.autoAttack) return null;
   const target = nearestLiving(units, u, "enemy", attackRange(u.rangeType));
-  if (!target) return;
+  if (!target) return null;
   strike(u, target);
   u.cooldown = cooldownMs(u.stats.attackSpeed);
+  return null;
 }

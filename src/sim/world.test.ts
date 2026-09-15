@@ -30,9 +30,11 @@ describe("combat numbers", () => {
     healer.x = wounded.x;
     healer.y = wounded.y;
     healer.cooldown = 0;
-    act(world.units, healer);
+    const fx = act(world.units, healer);
     expect(wounded.stats.health).toBeGreaterThan(10);
     expect(healer.cooldown).toBeGreaterThan(0);
+    expect(fx?.amount).toBeGreaterThan(0);
+    expect(fx?.targetId).toBe(wounded.id);
   });
 });
 
