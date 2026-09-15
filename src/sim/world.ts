@@ -1,5 +1,5 @@
 import { COLS, makeStats, MAX_FRIENDLIES, ROWS, TILE } from "./balance";
-import { act, canAttack, enemyTarget, isHealFx, living, type HealFx, type HitFx } from "./combat";
+import { act, canAttack, enemyTarget, isHealFx, living, regenMana, type HealFx, type HitFx } from "./combat";
 import { cardinalNeighbors, gridCenter, tileKey, worldToGrid, type GridPoint } from "./grid";
 import { createBlocked } from "./map";
 import { findPath, inBounds, nearestOpen } from "./path";
@@ -110,6 +110,7 @@ export class World {
     for (const u of this.units) {
       if (u.stats.health <= 0) continue;
       this.stepMove(u, delta);
+      regenMana(u, delta);
       u.cooldown = Math.max(0, u.cooldown - delta);
       if (u.cooldown <= 0 && u.path.length === 0) {
         const fx = act(this.units, u);

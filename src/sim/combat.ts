@@ -32,6 +32,12 @@ export function living(units: SimUnit[], side?: Side): SimUnit[] {
   return units.filter((u) => u.stats.health > 0 && (side === undefined || u.side === side));
 }
 
+/** Passive fill toward maxMana. Dead units and empty pools skip. */
+export function regenMana(u: SimUnit, deltaMs: number): void {
+  if (u.stats.maxMana <= 0 || u.stats.health <= 0) return;
+  u.stats.mana = Math.min(u.stats.maxMana, u.stats.mana + u.stats.manaRegen * (deltaMs / 1000));
+}
+
 /**
  * Closest living unit of `side` within `range` (world px). Ties keep the later scan.
  * `range` is both the cutoff and the initial best distance.

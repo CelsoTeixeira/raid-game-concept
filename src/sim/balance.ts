@@ -7,6 +7,8 @@ export const ROWS = 18;
 export const MELEE_RANGE = 40;
 export const RANGED_RANGE = 150;
 export const HEAL_MANA_COST = 8;
+/** Healer mana per second. Independent of the attack/heal clock. */
+export const HEALER_MANA_REGEN = 5;
 /** Threat written on a hit. Heals write none. */
 export const TANK_THREAT = 3;
 export const DPS_THREAT = 1;
@@ -39,6 +41,7 @@ export function makeStats(side: Side, role: Role, rangeType: RangeType): Stats {
       attackPower: 9,
       magicPower: 0,
       attackSpeed: 0.7,
+      manaRegen: 0,
     };
   }
   if (role === "tank") {
@@ -52,6 +55,7 @@ export function makeStats(side: Side, role: Role, rangeType: RangeType): Stats {
       attackPower: 8,
       magicPower: 0,
       attackSpeed: 0.9,
+      manaRegen: 0,
     };
   }
   if (role === "healer") {
@@ -66,6 +70,7 @@ export function makeStats(side: Side, role: Role, rangeType: RangeType): Stats {
       attackPower: 6,
       magicPower: 22,
       attackSpeed: 1,
+      manaRegen: HEALER_MANA_REGEN,
     };
   }
   const ranged = rangeType === "ranged";
@@ -79,5 +84,6 @@ export function makeStats(side: Side, role: Role, rangeType: RangeType): Stats {
     attackPower: ranged ? 15 : 18,
     magicPower: 0,
     attackSpeed: ranged ? 0.95 : 1.15,
+    manaRegen: 0,
   };
 }

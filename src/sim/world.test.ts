@@ -59,6 +59,20 @@ describe("combat numbers", () => {
     const hit = act(world.units, tank);
     expect(hit && !isHealFx(hit) && hit.kind).toBe("melee");
   });
+
+  it("healers regen mana each second and stop at max", () => {
+    const world = new World();
+    const healer = world.units.find((u) => u.role === "healer")!;
+    const tank = world.units.find((u) => u.role === "tank")!;
+    healer.stats.mana = 0;
+    healer.autoAttack = false;
+    world.tick(1000);
+    expect(healer.stats.mana).toBeCloseTo(5, 5);
+    expect(tank.stats.mana).toBe(0);
+    healer.stats.mana = 119;
+    world.tick(1000);
+    expect(healer.stats.mana).toBe(120);
+  });
 });
 
 describe("occupancy", () => {
