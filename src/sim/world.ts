@@ -106,22 +106,32 @@ export class World {
   }
 
   /**
-   * Click a unit with a selection: healers heal that friendly, everyone attacks that enemy.
-   * Returns false so the view can fall back to selection (empty ground, tanks on allies, nothing selected).
+   * Right-click a unit with a selection: healers heal that friendly, everyone attacks that enemy.
+   * Returns false so the view can fall back to a ground move (empty ground, tanks on allies).
    */
   tryCommand(x: number, y: number): boolean {
+    const hover = this.commandAt(x, y);
+    if (!hover) return false;
     const selected = living(this.units, "friendly").filter((u) => u.selected);
-    if (selected.length === 0) return false;
-    const hit = this.unitAt(x, y, "enemy") ?? this.unitAt(x, y, "friendly");
-    if (!hit) return false;
-    if (hit.side === "enemy") {
-      for (const u of selected) u.order = { kind: "attack", targetId: hit.id };
+    if (hover.kind === "attack") {
+      for (const u of selected) u.order = { kind: "attack", targetId: hover.id };
       return true;
     }
-    const healers = selected.filter((u) => u.role === "healer");
-    if (healers.length === 0) return false;
-    for (const u of healers) u.order = { kind: "heal", targetId: hit.id };
+    for (const u of selected) {
+      if (u.role === "healer") u.order = { kind: "heal", targetId: hover.id };
+    }
     return true;
+  }
+
+  /** What a right-click here would do. Null means ground move (or nothing selected). */
+  commandAt(x: number, y: number): { kind: "attack" | "heal"; id: string; x: number; y: number } | null {
+    const selected = living(this.units, "friendly").filter((u) => u.selected);
+    if (selected.length === 0) return null;
+    const hit = this.unitAt(x, y, "enemy") ?? this.unitAt(x, y, "friendly");
+    if (!hit) return null;
+    if (hit.side === "enemy") return { kind: "attack", id: hit.id, x: hit.x, y: hit.y };
+    if (selected.some((u) => u.role === "healer")) return { kind: "heal", id: hit.id, x: hit.x, y: hit.y };
+    return null;
   }
 
   /**

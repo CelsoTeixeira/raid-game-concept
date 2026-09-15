@@ -139,6 +139,7 @@ describe("combat numbers", () => {
     tank.selected = true;
     expect(world.tryCommand(other.x, other.y)).toBe(false);
     expect(tank.order).toBeNull();
+    expect(world.commandAt(other.x, other.y)).toBeNull();
   });
 
   it("tank click on an enemy sets an attack order even with auto-attack off", () => {

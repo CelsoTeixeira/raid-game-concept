@@ -79,7 +79,9 @@ export class RaidScene extends Phaser.Scene {
     });
     this.input.on("pointerup", (p: Phaser.Input.Pointer) => {
       if (p.button === 2) {
-        if (this.moveHeld) this.world.orderMove(p.worldX, p.worldY);
+        if (this.moveHeld && !this.world.tryCommand(p.worldX, p.worldY)) {
+          this.world.orderMove(p.worldX, p.worldY);
+        }
         this.moveHeld = false;
         this.clearPreview();
         return;
@@ -90,7 +92,7 @@ export class RaidScene extends Phaser.Scene {
       const dy = p.worldY - this.boxStart.y;
       if (Math.hypot(dx, dy) > 8) {
         this.world.selectBox(this.boxStart.x, this.boxStart.y, p.worldX, p.worldY, this.shift);
-      } else if (this.shift || !this.world.tryCommand(p.worldX, p.worldY)) {
+      } else {
         this.world.selectClick(p.worldX, p.worldY, this.shift);
       }
       this.boxStart = null;
@@ -201,6 +203,23 @@ export class RaidScene extends Phaser.Scene {
     this.clearPreview();
     if (!this.moveHeld) return;
     const p = this.input.activePointer;
+    const command = this.world.commandAt(p.worldX, p.worldY);
+    if (command) {
+      const selected = this.world.units.filter((u) => u.selected && u.stats.health > 0);
+      const color = command.kind === "heal" ? 0x4ade80 : 0xf87171;
+      const title = this.add
+        .text(command.x, command.y - 28, command.kind, { fontSize: "11px", color: command.kind === "heal" ? "#4ade80" : "#f87171" })
+        .setOrigin(0.5)
+        .setDepth(22);
+      this.previewLabels.push(title);
+      this.previewGfx.lineStyle(1, color, 0.95);
+      this.previewGfx.strokeCircle(command.x, command.y, 16);
+      for (const u of selected) {
+        if (command.kind === "heal" && u.role !== "healer") continue;
+        this.previewGfx.lineBetween(u.x, u.y, command.x, command.y);
+      }
+      return;
+    }
     const assigns = this.world.moveAssignments(p.worldX, p.worldY);
     const name = this.world.formation;
     this.previewGfx.lineStyle(1, 0xfef08a, 0.85);

@@ -15,11 +15,12 @@ export function App() {
       <aside className="hud">
         <h1>Raid POC</h1>
         <p className="hint">
-          Left click select. Drag box. Shift add. With units selected, left click a friendly to
-          heal (healers only) or an enemy to attack. Hold right click to preview move, release to go.
-          A move cancels the click order. While previewing: F or mouse wheel cycles formation (raid /
-          line / box). 1 raid, 2 line, 3 box. Tanks at the click, melee behind, ranged at the back.
-          Labels: T tank, Dm/Dr dps, Hm/Hr healer.
+          Left click select. Drag box. Shift add. Hold right click: on empty ground, preview a
+          formation move and release to go. On an enemy, attack (walk in only if out of range). On a
+          friendly, healers heal that ally (same range rule); tanks and dps keep the ground-move.
+          A ground move cancels the attack/heal order. While previewing a move: F or mouse wheel
+          cycles formation (raid / line / box). 1 raid, 2 line, 3 box. Tanks at the click, melee
+          behind, ranged at the back. Labels: T tank, Dm/Dr dps, Hm/Hr healer.
         </p>
         <div className="row">
           <button type="button" onClick={() => run("spawnEnemy")}>
