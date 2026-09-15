@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { GameCanvas } from "./GameCanvas";
-import { getRaidCommands } from "./game/RaidScene";
-import { getHudState, subscribeHud } from "./game/hudStore";
+import { getRaidCommands } from "./view/commands";
+import { getHudState, subscribeHud } from "./view/hudStore";
 
 export function App() {
   const hud = useSyncExternalStore(subscribeHud, getHudState, getHudState);

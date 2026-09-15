@@ -1,7 +1,9 @@
 export type Side = "friendly" | "enemy";
 export type Role = "tank" | "healer" | "dps";
+/** Tanks and enemies are always melee regardless of spawn args. */
 export type RangeType = "melee" | "ranged";
 
+/** `attackSpeed` is hits per second on the shared clock. `magicPower` is heal amount. */
 export type Stats = {
   health: number;
   maxHealth: number;

@@ -1,5 +1,6 @@
-import type { HudState } from "./types";
+import type { HudState } from "../sim/types";
 
+/** Last `World.hud()` snapshot. React subscribes; the scene writes each frame. */
 const empty: HudState = {
   selected: [],
   friendlyAlive: 0,

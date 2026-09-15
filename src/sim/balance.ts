@@ -1,11 +1,13 @@
 import type { RangeType, Role, Side, Stats } from "./types";
 
+/** Pixel size of one pathfinding cell. Combat ranges are world pixels, not tiles. */
 export const TILE = 32;
 export const COLS = 30;
 export const ROWS = 18;
 export const MELEE_RANGE = 40;
 export const RANGED_RANGE = 150;
 export const HEAL_MANA_COST = 8;
+/** Threat written on a hit. Heals write none. */
 export const TANK_THREAT = 3;
 export const DPS_THREAT = 1;
 export const HEALER_THREAT = 1;
@@ -15,10 +17,12 @@ export function attackRange(rangeType: RangeType): number {
   return rangeType === "ranged" ? RANGED_RANGE : MELEE_RANGE;
 }
 
+/** `max(1, attackPower - armor)` — a hit always chips. */
 export function incomingDamage(attackPower: number, armor: number): number {
   return Math.max(1, attackPower - armor);
 }
 
+/** One shared attack/heal clock: `1000 / attackSpeed` ms, speed floored at 0.2. */
 export function cooldownMs(attackSpeed: number): number {
   return 1000 / Math.max(0.2, attackSpeed);
 }

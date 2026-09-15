@@ -1,9 +1,15 @@
-export type GridPoint = { c: number; r: number };
+import type { GridPoint } from "./grid";
+
+export type { GridPoint };
 
 export function inBounds(c: number, r: number, cols: number, rows: number): boolean {
   return c >= 0 && r >= 0 && c < cols && r < rows;
 }
 
+/**
+ * 4-direction A*. Returns steps after `start` (empty if start===goal or a cell is walled).
+ * Living units are not blockers — occupancy is a stop rule, not a walk rule.
+ */
 export function findPath(
   blocked: boolean[][],
   start: GridPoint,
@@ -71,6 +77,10 @@ export function findPath(
   return [];
 }
 
+/**
+ * BFS from `from` (inclusive) for the first unblocked cell `isTaken` rejects.
+ * Used to fan group landings and unstick idle stacks.
+ */
 export function nearestOpen(
   blocked: boolean[][],
   from: GridPoint,

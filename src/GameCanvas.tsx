@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import Phaser from "phaser";
-import { COLS, ROWS, TILE } from "./game/balance";
-import { RaidScene } from "./game/RaidScene";
+import { COLS, ROWS, TILE } from "./sim/balance";
+import { RaidScene } from "./view/RaidScene";
 
 export function GameCanvas() {
   const host = useRef<HTMLDivElement>(null);
