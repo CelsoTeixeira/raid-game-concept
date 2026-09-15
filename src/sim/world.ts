@@ -1,8 +1,9 @@
 import { COLS, makeStats, MAX_FRIENDLIES, ROWS, TILE } from "./balance";
 import { act, canAttack, enemyTarget, isHealFx, living, regenMana, type HealFx, type HitFx } from "./combat";
-import { cardinalNeighbors, gridCenter, tileKey, worldToGrid, type GridPoint } from "./grid";
+import { gridCenter, tileKey, worldToGrid, type GridPoint } from "./grid";
 import { createBlocked } from "./map";
-import { findPath, inBounds, nearestOpen } from "./path";
+import { gridPathToWorld, pathToPoint, ringSlots } from "./nav";
+import { findPath, nearestOpen } from "./path";
 import type { HudState, RangeType, Role, Side, UnitSnapshot } from "./types";
 import type { MoveAssign, SimUnit } from "./unit";
 
@@ -67,7 +68,7 @@ export class World {
   orderMove(x: number, y: number): void {
     for (const { unit, goal } of this.moveAssignments(x, y)) {
       const start = this.toGrid(unit);
-      unit.path = findPath(this.blocked, start, goal);
+      unit.path = gridPathToWorld(findPath(this.blocked, start, goal), TILE);
     }
   }
 
@@ -113,13 +114,14 @@ export class World {
       regenMana(u, delta);
       u.cooldown = Math.max(0, u.cooldown - delta);
       if (u.cooldown <= 0 && u.path.length === 0) {
-        const fx = act(this.units, u);
-        if (!fx) continue;
-        if (isHealFx(fx)) this.heals.push(fx);
-        else this.hits.push(fx);
+        for (const fx of act(this.units, u)) {
+          if (isHealFx(fx)) this.heals.push(fx);
+          else this.hits.push(fx);
+        }
       }
     }
     this.spreadStacked();
+    this.separateEnemies();
     this.purgeDead();
     this.updateEnemyChase();
   }
@@ -191,7 +193,7 @@ export class World {
 
   private stepMove(u: SimUnit, delta: number): void {
     if (u.path.length === 0) return;
-    const next = gridCenter(u.path[0], TILE);
+    const next = u.path[0];
     const dx = next.x - u.x;
     const dy = next.y - u.y;
     const dist = Math.hypot(dx, dy);
@@ -207,10 +209,10 @@ export class World {
     u.y += (dy / dist) * step;
   }
 
-  /** Idle extras on a shared tile path off; the first occupant stays. */
+  /** Idle extras on a shared tile path off; the first occupant stays. Enemies use the ring instead. */
   private spreadStacked(): void {
     const buckets = new Map<string, SimUnit[]>();
-    for (const u of living(this.units)) {
+    for (const u of living(this.units, "friendly")) {
       if (u.path.length > 0) continue;
       const p = this.toGrid(u);
       const k = tileKey(p.c, p.r);
@@ -229,7 +231,7 @@ export class World {
     if (!this.unitStoppedOn(here.c, here.r, u.id)) return;
     const free = nearestOpen(this.blocked, here, (c, r) => this.unitStoppedOn(c, r, u.id));
     if (!free) return;
-    u.path = findPath(this.blocked, here, free);
+    u.path = gridPathToWorld(findPath(this.blocked, here, free), TILE);
   }
 
   /** True if another *idle* living unit already occupies the cell. Movers do not count. */
@@ -241,43 +243,71 @@ export class World {
     });
   }
 
-  /** Idle enemies path onto an adjacent tile of their threat target. */
+  /** Idle enemies path to a unique world-space slot on a ring around their target. */
   private updateEnemyChase(): void {
-    const reserved = new Set<string>();
-    for (const u of living(this.units)) {
-      if (u.path.length > 0) continue;
-      const p = this.toGrid(u);
-      reserved.add(tileKey(p.c, p.r));
-    }
-    for (const u of this.units) {
-      if (u.side !== "enemy" || u.stats.health <= 0) continue;
-      if (u.path.length > 0) continue;
+    const packs = new Map<string, SimUnit[]>();
+    for (const u of living(this.units, "enemy")) {
       const target = enemyTarget(this.units, u);
       if (!target) continue;
-      if (canAttack(u, target)) continue;
-      const start = this.toGrid(u);
-      reserved.delete(tileKey(start.c, start.r));
-      const around = this.toGrid(target);
-      const goal = this.meleeApproach(around, start, reserved);
-      reserved.add(tileKey(goal.c, goal.r));
-      u.path = findPath(this.blocked, start, goal);
+      if (canAttack(u, target)) {
+        u.path = [];
+        continue;
+      }
+      const list = packs.get(target.id) ?? [];
+      list.push(u);
+      packs.set(target.id, list);
+    }
+    for (const [targetId, pack] of packs) {
+      const target = this.units.find((x) => x.id === targetId);
+      if (!target) continue;
+      const slots = ringSlots(this.blocked, { x: target.x, y: target.y }, TILE, pack.length);
+      const claimed = new Set<number>();
+      for (const u of pack) {
+        let best = -1;
+        let bestD = 1e9;
+        for (let i = 0; i < slots.length; i++) {
+          if (claimed.has(i)) continue;
+          const d = Math.hypot(u.x - slots[i].x, u.y - slots[i].y);
+          if (d < bestD) {
+            bestD = d;
+            best = i;
+          }
+        }
+        const slot = best >= 0 ? slots[best] : { x: target.x + TILE, y: target.y };
+        if (best >= 0) claimed.add(best);
+        u.path = pathToPoint(this.blocked, { x: u.x, y: u.y }, slot);
+      }
     }
   }
 
-  /** Prefer a free cardinal neighbor of the target; never stop on the target's tile. */
-  private meleeApproach(target: GridPoint, from: GridPoint, reserved: Set<string>): GridPoint {
-    const taken = (c: number, r: number) =>
-      reserved.has(tileKey(c, r)) || (c === target.c && r === target.r);
-    const spots = cardinalNeighbors(target).filter(
-      (p) => inBounds(p.c, p.r, COLS, ROWS) && !this.blocked[p.r][p.c] && !taken(p.c, p.r),
-    );
-    if (spots.length > 0) {
-      spots.sort(
-        (a, b) => Math.abs(a.c - from.c) + Math.abs(a.r - from.r) - (Math.abs(b.c - from.c) + Math.abs(b.r - from.r)),
-      );
-      return spots[0];
+  /** Soft radius so enemies fan around a body instead of stacking on a cell. */
+  private separateEnemies(): void {
+    const pack = living(this.units, "enemy");
+    const minD = 22;
+    for (let i = 0; i < pack.length; i++) {
+      for (let j = i + 1; j < pack.length; j++) {
+        const a = pack[i];
+        const b = pack[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const d = Math.hypot(dx, dy);
+        if (d >= minD || d < 0.001) continue;
+        const push = (minD - d) / 2;
+        const nx = dx / d;
+        const ny = dy / d;
+        this.nudge(a, -nx * push, -ny * push);
+        this.nudge(b, nx * push, ny * push);
+      }
     }
-    return nearestOpen(this.blocked, from, (c, r) => taken(c, r)) ?? from;
+  }
+
+  private nudge(u: SimUnit, dx: number, dy: number): void {
+    const x = u.x + dx;
+    const y = u.y + dy;
+    const g = worldToGrid(x, y, TILE, COLS, ROWS);
+    if (this.blocked[g.r][g.c]) return;
+    u.x = x;
+    u.y = y;
   }
 
   private friendlyAt(x: number, y: number): SimUnit | undefined {

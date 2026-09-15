@@ -35,8 +35,8 @@ describe("combat numbers", () => {
     const fx = act(world.units, healer);
     expect(wounded.stats.health).toBeGreaterThan(10);
     expect(healer.cooldown).toBeGreaterThan(0);
-    expect(fx?.amount).toBeGreaterThan(0);
-    expect(fx && isHealFx(fx) && fx.targetId).toBe(wounded.id);
+    expect(fx[0]?.amount).toBeGreaterThan(0);
+    expect(fx[0] && isHealFx(fx[0]) && fx[0].targetId).toBe(wounded.id);
   });
 
   it("melee only swings from an adjacent tile", () => {
@@ -50,14 +50,34 @@ describe("combat numbers", () => {
     enemy.y = far.y;
     expect(canAttack(tank, enemy)).toBe(false);
     tank.cooldown = 0;
-    expect(act(world.units, tank)).toBeNull();
+    expect(act(world.units, tank)).toEqual([]);
     const next = gridCenter({ c: here.c + 1, r: here.r }, TILE);
     enemy.x = next.x;
     enemy.y = next.y;
     expect(canAttack(tank, enemy)).toBe(true);
     tank.cooldown = 0;
     const hit = act(world.units, tank);
-    expect(hit && !isHealFx(hit) && hit.kind).toBe("melee");
+    expect(hit[0] && !isHealFx(hit[0]) && hit[0].kind).toBe("melee");
+  });
+
+  it("tank cleave tags extra nearby enemies with threat", () => {
+    const world = new World();
+    const tank = world.units.find((u) => u.role === "tank")!;
+    world.spawnEnemy();
+    world.spawnEnemy();
+    const enemies = world.units.filter((u) => u.side === "enemy");
+    const here = { c: Math.floor(tank.x / TILE), r: Math.floor(tank.y / TILE) };
+    const a = gridCenter({ c: here.c + 1, r: here.r }, TILE);
+    const b = gridCenter({ c: here.c + 1, r: here.r + 1 }, TILE);
+    enemies[0].x = a.x;
+    enemies[0].y = a.y;
+    enemies[1].x = b.x;
+    enemies[1].y = b.y;
+    tank.cooldown = 0;
+    const fx = act(world.units, tank);
+    expect(fx.length).toBeGreaterThanOrEqual(2);
+    expect(enemies[0].threat.get(tank.id)).toBe(3);
+    expect(enemies[1].threat.get(tank.id)).toBe(3);
   });
 
   it("healers regen mana each second and stop at max", () => {

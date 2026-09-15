@@ -16,8 +16,8 @@ export type SimUnit = {
   selected: boolean;
   /** Remaining ms on the single attack/heal clock. */
   cooldown: number;
-  /** Upcoming tiles; current tile is not stored here. */
-  path: GridPoint[];
+  /** Upcoming world points (tile centers for raid orders, ring slots for enemy chase). */
+  path: { x: number; y: number }[];
   threat: Map<string, number>;
   x: number;
   y: number;

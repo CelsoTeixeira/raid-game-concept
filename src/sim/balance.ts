@@ -1,12 +1,17 @@
 import type { RangeType, Role, Side, Stats } from "./types";
 
-/** Pixel size of one pathfinding cell. Ranged combat uses world px; melee attacks use adjacent tiles. */
+/** Pixel size of one pathfinding cell. Ranged combat uses world px; melee uses `MELEE_REACH`. */
 export const TILE = 32;
 export const COLS = 30;
 export const ROWS = 18;
 export const MELEE_RANGE = 40;
+/** World-px melee reach (about one tile). Used for swings and enemy ring standoff. */
+export const MELEE_REACH = TILE * 1.15;
 export const RANGED_RANGE = 150;
 export const HEAL_MANA_COST = 8;
+/** Splash radius around a tank swing; extra enemies take half power and full tank threat. */
+export const TANK_CLEAVE_RANGE = TILE * 1.75;
+export const TANK_CLEAVE_POWER = 0.5;
 /** Healer mana per second. Independent of the attack/heal clock. */
 export const HEALER_MANA_REGEN = 5;
 /** Threat written on a hit. Heals write none. */
@@ -52,7 +57,7 @@ export function makeStats(side: Side, role: Role, rangeType: RangeType): Stats {
       maxMana: 0,
       movementSpeed: 85,
       armor: 10,
-      attackPower: 8,
+      attackPower: 5,
       magicPower: 0,
       attackSpeed: 0.9,
       manaRegen: 0,

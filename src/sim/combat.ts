@@ -1,16 +1,15 @@
 import {
   attackRange,
-  COLS,
   cooldownMs,
   DPS_THREAT,
   HEAL_MANA_COST,
   HEALER_THREAT,
   incomingDamage,
-  ROWS,
-  TILE,
+  MELEE_REACH,
+  TANK_CLEAVE_POWER,
+  TANK_CLEAVE_RANGE,
   TANK_THREAT,
 } from "./balance";
-import { isCardinalAdjacent, worldToGrid } from "./grid";
 import type { Side } from "./types";
 import type { SimUnit } from "./unit";
 
@@ -18,14 +17,10 @@ export function dist(a: SimUnit, b: SimUnit): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-function tileOf(u: SimUnit) {
-  return worldToGrid(u.x, u.y, TILE, COLS, ROWS);
-}
-
-/** Melee: orthogonal neighbor tile. Ranged: pixel radius. */
+/** Melee: within `MELEE_REACH` world px. Ranged: pixel radius. */
 export function canAttack(attacker: SimUnit, defender: SimUnit): boolean {
   if (attacker.rangeType === "ranged") return dist(attacker, defender) <= attackRange("ranged");
-  return isCardinalAdjacent(tileOf(attacker), tileOf(defender));
+  return dist(attacker, defender) <= MELEE_REACH;
 }
 
 export function living(units: SimUnit[], side?: Side): SimUnit[] {
@@ -81,8 +76,8 @@ export function enemyTarget(units: SimUnit[], u: SimUnit): SimUnit | null {
 }
 
 /** Armor damage. Friendly→enemy hits add tank 3 / healer-or-dps 1 threat. */
-export function strike(attacker: SimUnit, defender: SimUnit): number {
-  const amount = incomingDamage(attacker.stats.attackPower, defender.stats.armor);
+export function strike(attacker: SimUnit, defender: SimUnit, power = attacker.stats.attackPower): number {
+  const amount = incomingDamage(power, defender.stats.armor);
   defender.stats.health -= amount;
   if (attacker.side === "friendly" && defender.side === "enemy") {
     const add =
@@ -137,10 +132,17 @@ function attackTarget(units: SimUnit[], from: SimUnit, side: Side): SimUnit | nu
   return best;
 }
 
-function swing(u: SimUnit, target: SimUnit): HitFx {
-  const amount = strike(u, target);
+function swing(u: SimUnit, target: SimUnit, units: SimUnit[]): HitFx[] {
+  const fx: HitFx[] = [hitFx(u, target, strike(u, target))];
   u.cooldown = cooldownMs(u.stats.attackSpeed);
-  return hitFx(u, target, amount);
+  if (u.role !== "tank") return fx;
+  const splashPower = u.stats.attackPower * TANK_CLEAVE_POWER;
+  for (const e of living(units, "enemy")) {
+    if (e.id === target.id) continue;
+    if (dist(u, e) > TANK_CLEAVE_RANGE) continue;
+    fx.push(hitFx(u, e, strike(u, e, splashPower)));
+  }
+  return fx;
 }
 
 /** Instant heal for the view: bolt from healer to target, then floating `+amount`. */
@@ -182,24 +184,25 @@ export function tryHeal(units: SimUnit[], healer: SimUnit): HealFx | null {
 }
 
 /**
- * One clock tick while idle. Enemies melee their threat target (adjacent tile).
+ * One clock tick while idle. Enemies melee their threat target in reach.
  * Healers heal first (even if auto-attack is off), then weaker auto-attack.
+ * Tank swings cleave nearby enemies at half power (full tank threat each).
  */
-export function act(units: SimUnit[], u: SimUnit): ActFx | null {
+export function act(units: SimUnit[], u: SimUnit): ActFx[] {
   if (u.side === "enemy") {
     const target = enemyTarget(units, u);
-    if (!target || !canAttack(u, target)) return null;
-    return swing(u, target);
+    if (!target || !canAttack(u, target)) return [];
+    return swing(u, target, units);
   }
   if (u.role === "healer") {
     const heal = tryHeal(units, u);
     if (heal) {
       u.cooldown = cooldownMs(u.stats.attackSpeed);
-      return heal;
+      return [heal];
     }
   }
-  if (!u.autoAttack) return null;
+  if (!u.autoAttack) return [];
   const target = attackTarget(units, u, "enemy");
-  if (!target) return null;
-  return swing(u, target);
+  if (!target) return [];
+  return swing(u, target, units);
 }
