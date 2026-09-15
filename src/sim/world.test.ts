@@ -97,20 +97,21 @@ describe("combat numbers", () => {
   it("healer click order heals that ally instead of the lowest hp", () => {
     const world = new World();
     const healer = world.units.find((u) => u.role === "healer")!;
-    const tanks = world.units.filter((u) => u.role === "tank");
+    const tank = world.units.find((u) => u.role === "tank")!;
+    const dps = world.units.find((u) => u.role === "dps")!;
     healer.selected = true;
-    healer.x = tanks[0].x;
-    healer.y = tanks[0].y;
-    tanks[0].stats.health = 80;
-    tanks[1].stats.health = 10;
-    tanks[1].x = healer.x;
-    tanks[1].y = healer.y;
-    expect(world.tryCommand(tanks[0].x, tanks[0].y)).toBe(true);
+    healer.x = tank.x;
+    healer.y = tank.y;
+    tank.stats.health = 80;
+    dps.stats.health = 10;
+    dps.x = healer.x;
+    dps.y = healer.y;
+    expect(world.tryCommand(tank.x, tank.y)).toBe(true);
     healer.cooldown = 0;
     const fx = act(world.units, healer);
-    expect(fx[0] && isHealFx(fx[0]) && fx[0].targetId).toBe(tanks[0].id);
-    expect(tanks[0].stats.health).toBeGreaterThan(80);
-    expect(tanks[1].stats.health).toBe(10);
+    expect(fx[0] && isHealFx(fx[0]) && fx[0].targetId).toBe(tank.id);
+    expect(tank.stats.health).toBeGreaterThan(80);
+    expect(dps.stats.health).toBe(10);
   });
 
   it("healer click on an enemy attacks it instead of healing", () => {

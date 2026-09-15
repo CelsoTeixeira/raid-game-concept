@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
 import Phaser from "phaser";
 import { COLS, ROWS, TILE } from "./sim/balance";
+import type { GroupMember } from "./sim/group";
 import { RaidScene } from "./view/RaidScene";
 
-export function GameCanvas() {
+export function GameCanvas({ group }: { group: GroupMember[] }) {
   const host = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -14,9 +15,10 @@ export function GameCanvas() {
       width: COLS * TILE,
       height: ROWS * TILE,
       backgroundColor: "#1a1f16",
-      scene: [RaidScene],
       audio: { noAudio: true },
     });
+    game.scene.add("raid", RaidScene, false);
+    game.scene.start("raid", { group });
     return () => {
       game.destroy(true);
     };

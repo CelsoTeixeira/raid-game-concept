@@ -24,16 +24,16 @@ import { gridCenter, worldToGrid, type GridPoint } from "./grid";
 import { createBlocked } from "./map";
 import { pathToPoint, type WorldPoint } from "./nav";
 import { nearestOpen } from "./path";
+import { DEFAULT_GROUP, type GroupMember } from "./group";
 import type { HudState, RangeType, Role, Side, UnitSnapshot } from "./types";
 import type { MoveAssign, SimUnit } from "./unit";
 
-const ROSTER: Array<{ role: Role; rangeType: RangeType; c: number; r: number }> = [
-  { role: "tank", rangeType: "melee", c: 3, r: 7 },
-  { role: "tank", rangeType: "melee", c: 3, r: 10 },
-  { role: "dps", rangeType: "melee", c: 5, r: 6 },
-  { role: "dps", rangeType: "ranged", c: 5, r: 11 },
-  { role: "healer", rangeType: "melee", c: 2, r: 8 },
-  { role: "healer", rangeType: "ranged", c: 2, r: 9 },
+const GROUP_SPAWN_SLOTS: GridPoint[] = [
+  { c: 5, r: 8 },
+  { c: 4, r: 7 },
+  { c: 4, r: 9 },
+  { c: 3, r: 8 },
+  { c: 2, r: 8 },
 ];
 
 /**
@@ -49,9 +49,11 @@ export class World {
   private nextId = 1;
   private heals: HealFx[] = [];
   private hits: HitFx[] = [];
+  private readonly group: GroupMember[];
 
-  constructor() {
-    this.spawnDefaultFriendlies();
+  constructor(group: GroupMember[] = DEFAULT_GROUP) {
+    this.group = group.map((member) => ({ ...member }));
+    this.spawnGroup();
   }
 
   reset(): void {
@@ -60,7 +62,7 @@ export class World {
     this.heals = [];
     this.hits = [];
     this.formation = "raid";
-    this.spawnDefaultFriendlies();
+    this.spawnGroup();
   }
 
   spawnEnemy(): void {
@@ -205,9 +207,11 @@ export class World {
     };
   }
 
-  private spawnDefaultFriendlies(): void {
-    for (const row of ROSTER) {
-      this.addUnit("friendly", row.role, row.rangeType, row.c, row.r);
+  private spawnGroup(): void {
+    for (const [index, member] of this.group.slice(0, MAX_FRIENDLIES).entries()) {
+      const slot = GROUP_SPAWN_SLOTS[index];
+      if (!slot) break;
+      this.addUnit("friendly", member.role, member.rangeType, slot.c, slot.r);
     }
   }
 

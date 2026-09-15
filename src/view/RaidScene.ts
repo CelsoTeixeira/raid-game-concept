@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { COLS, ROWS, TILE } from "../sim/balance";
 import { enemyTarget } from "../sim/combat";
+import type { GroupMember } from "../sim/group";
 import { WALLS } from "../sim/map";
 import type { SimUnit } from "../sim/unit";
 import { World } from "../sim/world";
@@ -24,7 +25,7 @@ type UnitView = {
  * Hold RMB to preview landings (`moveAssignments`); release to `orderMove`.
  */
 export class RaidScene extends Phaser.Scene {
-  private world = new World();
+  private world!: World;
   private views = new Map<string, UnitView>();
   private boxStart: Phaser.Math.Vector2 | null = null;
   private boxGfx!: Phaser.GameObjects.Graphics;
@@ -37,6 +38,10 @@ export class RaidScene extends Phaser.Scene {
 
   constructor() {
     super("raid");
+  }
+
+  init(data: { group: GroupMember[] }): void {
+    this.world = new World(data.group);
   }
 
   create(): void {

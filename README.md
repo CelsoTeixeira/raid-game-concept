@@ -8,3 +8,5 @@ npm run dev
 ```
 
 Left click select, drag box, shift-add, right click move. Spawn enemies from the panel.
+
+Flow: Start → Group → Field. The group screen previews the default five-member party before entering the Phaser field.
