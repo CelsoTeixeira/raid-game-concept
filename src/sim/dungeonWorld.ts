@@ -7,7 +7,10 @@ import {
   generateDungeon,
   isFloorTile,
   isReservedTile,
+  mulberry32,
   randomDungeonSeed,
+  roomContaining,
+  type DungeonRect,
   type Dungeon,
 } from "./dungeon";
 import { gridCenter, tileKey, worldToGrid, type GridPoint } from "./grid";
@@ -18,6 +21,17 @@ export type EnemyGroup = {
   id: string;
   anchor: GridPoint;
   unitIds: string[];
+};
+
+export type DungeonEncounterGroup = {
+  id: string;
+  anchor: GridPoint;
+  positions: GridPoint[];
+};
+
+export type DungeonEncounter = {
+  dungeon: Dungeon;
+  groups: DungeonEncounterGroup[];
 };
 
 export type DungeonHudState = {
@@ -33,10 +47,15 @@ export type DungeonHudState = {
 };
 
 const PACK_SIZES = [2, 3, 4, 5] as const;
+const GENERATED_PACK_SIZES: Record<Exclude<DungeonRect["size"], "boss">, number> = {
+  small: 5,
+  medium: 10,
+  big: 15,
+};
 
 /**
- * Dungeon sandbox: walls from {@link generateDungeon}, enemy packs the player stamps on the floor.
- * No friendlies — packs idle in place.
+ * Dungeon sandbox: walls from {@link generateDungeon}, with one seeded enemy pack in each
+ * ordinary room except the entry and boss rooms. No friendlies — packs idle in place.
  */
 export class DungeonWorld {
   dungeon: Dungeon;
@@ -46,8 +65,15 @@ export class DungeonWorld {
   private nextUnit = 1;
   private nextGroup = 1;
 
-  constructor(seed?: number) {
-    this.dungeon = generateDungeon(seed ?? randomDungeonSeed());
+  constructor(encounter?: DungeonEncounter | number) {
+    if (typeof encounter === "object") {
+      this.dungeon = encounter.dungeon;
+      this.restoreGroups(encounter.groups);
+      return;
+    }
+
+    this.dungeon = generateDungeon(encounter ?? randomDungeonSeed());
+    this.populateGeneratedPacks();
   }
 
   regenerate(seed?: number): void {
@@ -56,6 +82,7 @@ export class DungeonWorld {
     this.nextUnit = 1;
     this.nextGroup = 1;
     this.dungeon = generateDungeon(seed ?? randomDungeonSeed());
+    this.populateGeneratedPacks();
   }
 
   setPackSize(size: number): void {
@@ -73,15 +100,7 @@ export class DungeonWorld {
     if (!from) return null;
     const spots = this.pickTiles(from, this.packSize);
     if (spots.length === 0) return null;
-    const unitIds: string[] = [];
-    for (const spot of spots) unitIds.push(this.addEnemy(spot));
-    const group: EnemyGroup = {
-      id: `pack-${this.nextGroup++}`,
-      anchor: from,
-      unitIds,
-    };
-    this.groups.push(group);
-    return group;
+    return this.addGroup(from, spots);
   }
 
   removeGroupAt(x: number, y: number): boolean {
@@ -96,6 +115,21 @@ export class DungeonWorld {
   clearGroups(): void {
     this.units = [];
     this.groups = [];
+  }
+
+  encounter(): DungeonEncounter {
+    const units = new Map(this.units.map((unit) => [unit.id, unit]));
+    return {
+      dungeon: this.dungeon,
+      groups: this.groups.map((group) => ({
+        id: group.id,
+        anchor: { ...group.anchor },
+        positions: group.unitIds
+          .map((id) => units.get(id))
+          .filter((unit): unit is SimUnit => !!unit && unit.stats.health > 0)
+          .map((unit) => worldToGrid(unit.x, unit.y, TILE, this.dungeon.cols, this.dungeon.rows)),
+      })),
+    };
   }
 
   hud(): DungeonHudState {
@@ -134,6 +168,76 @@ export class DungeonWorld {
       out.push(spot);
     }
     return out;
+  }
+
+  private populateGeneratedPacks(): void {
+    const rng = mulberry32(this.dungeon.seed);
+    const entryRoom = roomContaining(this.dungeon, this.dungeon.start.c, this.dungeon.start.r);
+    for (const room of this.dungeon.rooms) {
+      if (room.size === "boss" || room === entryRoom) continue;
+      const spots = this.pickRoomTiles(room, GENERATED_PACK_SIZES[room.size], rng);
+      if (spots.length === GENERATED_PACK_SIZES[room.size]) this.addGroup(spots[0], spots);
+    }
+  }
+
+  private restoreGroups(groups: DungeonEncounterGroup[]): void {
+    for (const group of groups) {
+      const positions = group.positions.map((position) => ({ ...position }));
+      if (positions.length === 0) continue;
+      const unitIds = positions.map((position) => this.addEnemy(position));
+      this.groups.push({ id: group.id, anchor: { ...group.anchor }, unitIds });
+    }
+    this.nextGroup = groups.reduce((next, group) => {
+      const number = Number(group.id.replace("pack-", ""));
+      return Number.isFinite(number) ? Math.max(next, number + 1) : next;
+    }, 1);
+  }
+
+  private pickRoomTiles(room: DungeonRect, count: number, rng: () => number): GridPoint[] {
+    const candidates: GridPoint[] = [];
+    for (let r = room.r; r < room.r + room.h; r++) {
+      for (let c = room.c; c < room.c + room.w; c++) {
+        if (!isFloorTile(this.dungeon, c, r) || isReservedTile(this.dungeon, c, r)) continue;
+        candidates.push({ c, r });
+      }
+    }
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      const temp = candidates[i];
+      candidates[i] = candidates[j];
+      candidates[j] = temp;
+    }
+
+    for (const anchor of candidates) {
+      const taken = this.taken();
+      const spots: GridPoint[] = [];
+      const reserved = (c: number, r: number) =>
+        c < room.c ||
+        c >= room.c + room.w ||
+        r < room.r ||
+        r >= room.r + room.h ||
+        taken.has(tileKey(c, r)) ||
+        isReservedTile(this.dungeon, c, r);
+      for (let i = 0; i < count; i++) {
+        const spot = nearestOpen(this.dungeon.blocked, anchor, reserved);
+        if (!spot) break;
+        taken.add(tileKey(spot.c, spot.r));
+        spots.push(spot);
+      }
+      if (spots.length === count) return spots;
+    }
+    return [];
+  }
+
+  private addGroup(anchor: GridPoint, spots: GridPoint[]): EnemyGroup {
+    const unitIds = spots.map((spot) => this.addEnemy(spot));
+    const group: EnemyGroup = {
+      id: `pack-${this.nextGroup++}`,
+      anchor,
+      unitIds,
+    };
+    this.groups.push(group);
+    return group;
   }
 
   private taken(): Set<string> {

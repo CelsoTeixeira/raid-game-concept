@@ -1,4 +1,4 @@
-import { COLS, ROWS, TILE } from "./balance";
+import { TILE } from "./balance";
 import { worldToGrid, type GridPoint } from "./grid";
 import { findPath, inBounds } from "./path";
 
@@ -18,10 +18,12 @@ export function lineClear(
 ): boolean {
   const span = Math.hypot(x1 - x0, y1 - y0);
   const steps = Math.max(1, Math.ceil(span / (TILE / 4)));
+  const rows = blocked.length;
+  const cols = blocked[0]?.length ?? 0;
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
-    const g = worldToGrid(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, TILE, COLS, ROWS);
-    if (!inBounds(g.c, g.r, COLS, ROWS) || blocked[g.r][g.c]) return false;
+    const g = worldToGrid(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, TILE, cols, rows);
+    if (!inBounds(g.c, g.r, cols, rows) || blocked[g.r][g.c]) return false;
   }
   return true;
 }
@@ -33,8 +35,10 @@ export function pathToPoint(
   to: WorldPoint,
 ): WorldPoint[] {
   if (lineClear(blocked, from.x, from.y, to.x, to.y)) return [to];
-  const start = worldToGrid(from.x, from.y, TILE, COLS, ROWS);
-  const goal = worldToGrid(to.x, to.y, TILE, COLS, ROWS);
+  const rows = blocked.length;
+  const cols = blocked[0]?.length ?? 0;
+  const start = worldToGrid(from.x, from.y, TILE, cols, rows);
+  const goal = worldToGrid(to.x, to.y, TILE, cols, rows);
   const grid = findPath(blocked, start, goal);
   const world = gridPathToWorld(grid, TILE);
   if (world.length === 0) return lineClear(blocked, from.x, from.y, to.x, to.y) ? [to] : [];

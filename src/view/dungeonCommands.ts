@@ -2,6 +2,7 @@ export type DungeonCommands = {
   regenerate: () => void;
   clearGroups: () => void;
   setPackSize: (n: number) => void;
+  startGame: () => void;
 };
 
 let commands: DungeonCommands | null = null;

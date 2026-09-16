@@ -1,5 +1,5 @@
 import { ENEMY_APPEARANCE, getMemberAppearance } from "../appearance";
-import { attackRange, COLS, makeEnemyStats, MAX_FRIENDLIES, ROWS, TILE } from "./balance";
+import { attackRange, makeEnemyStats, MAX_FRIENDLIES, TILE } from "./balance";
 import {
   act,
   canAttack,
@@ -28,6 +28,8 @@ import { nearestOpen } from "./path";
 import { ENEMY_ATTRIBUTES } from "./classes";
 import { copyCombatStats, type Character } from "./character";
 import { DEFAULT_GROUP } from "./group";
+import { roomContaining } from "./dungeon";
+import type { DungeonEncounter } from "./dungeonWorld";
 import type { HudState, Side, UnitSnapshot } from "./types";
 import type { MoveAssign, SimUnit } from "./unit";
 
@@ -53,10 +55,16 @@ export class World {
   private heals: HealFx[] = [];
   private hits: HitFx[] = [];
   private readonly group: Character[];
+  private readonly encounter: DungeonEncounter | null;
 
-  constructor(group: Character[] = DEFAULT_GROUP) {
+  constructor(group: Character[] = DEFAULT_GROUP, encounter?: DungeonEncounter) {
     this.group = group.map((member) => ({ ...member }));
+    this.encounter = encounter ?? null;
+    this.blocked = encounter
+      ? encounter.dungeon.blocked.map((row) => [...row])
+      : createBlocked();
     this.spawnGroup();
+    this.spawnEncounterEnemies();
   }
 
   reset(): void {
@@ -65,13 +73,17 @@ export class World {
     this.heals = [];
     this.hits = [];
     this.formation = "raid";
+    this.blocked = this.encounter
+      ? this.encounter.dungeon.blocked.map((row) => [...row])
+      : createBlocked();
     this.spawnGroup();
+    this.spawnEncounterEnemies();
   }
 
   spawnEnemy(): void {
     const seed: GridPoint = {
-      c: COLS - 2,
-      r: 2 + Math.floor(Math.random() * (ROWS - 4)),
+      c: this.blocked[0].length - 2,
+      r: 2 + Math.floor(Math.random() * (this.blocked.length - 4)),
     };
     const spot = nearestOpen(this.blocked, seed, () => false) ?? seed;
     this.addEnemy(spot.c, spot.r);
@@ -211,10 +223,41 @@ export class World {
   }
 
   private spawnGroup(): void {
+    const slots = this.encounter ? this.entryRoomSlots() : GROUP_SPAWN_SLOTS;
     for (const [index, member] of this.group.slice(0, MAX_FRIENDLIES).entries()) {
-      const slot = GROUP_SPAWN_SLOTS[index];
+      const slot = slots[index];
       if (!slot) break;
       this.addFriendly(member, slot.c, slot.r, index);
+    }
+  }
+
+  private entryRoomSlots(): GridPoint[] {
+    if (!this.encounter) return [];
+    const dungeon = this.encounter.dungeon;
+    const room = roomContaining(dungeon, dungeon.start.c, dungeon.start.r);
+    if (!room) return [];
+    const occupied = new Set(
+      this.encounter.groups.flatMap((group) => group.positions.map((position) => `${position.c},${position.r}`)),
+    );
+    const slots: GridPoint[] = [];
+    for (let r = room.r; r < room.r + room.h; r++) {
+      for (let c = room.c; c < room.c + room.w; c++) {
+        if (dungeon.blocked[r][c] || occupied.has(`${c},${r}`)) continue;
+        slots.push({ c, r });
+      }
+    }
+    slots.sort(
+      (a, b) =>
+        Math.abs(a.c - dungeon.start.c) + Math.abs(a.r - dungeon.start.r) -
+        (Math.abs(b.c - dungeon.start.c) + Math.abs(b.r - dungeon.start.r)),
+    );
+    return slots;
+  }
+
+  private spawnEncounterEnemies(): void {
+    if (!this.encounter) return;
+    for (const group of this.encounter.groups) {
+      for (const position of group.positions) this.addEnemy(position.c, position.r);
     }
   }
 
@@ -382,7 +425,7 @@ export class World {
   private nudge(u: SimUnit, dx: number, dy: number): void {
     const x = u.x + dx;
     const y = u.y + dy;
-    const g = worldToGrid(x, y, TILE, COLS, ROWS);
+    const g = worldToGrid(x, y, TILE, this.blocked[0].length, this.blocked.length);
     if (this.blocked[g.r][g.c]) return;
     u.x = x;
     u.y = y;

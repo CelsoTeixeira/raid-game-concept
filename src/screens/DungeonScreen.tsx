@@ -1,11 +1,23 @@
 import { useSyncExternalStore } from "react";
 import { DungeonCanvas } from "../DungeonCanvas";
+import type { DungeonEncounter } from "../sim/dungeonWorld";
+import type { GroupMember } from "../sim/group";
 import { getDungeonCommands } from "../view/dungeonCommands";
 import { getDungeonHudState, subscribeDungeonHud } from "../view/dungeonHudStore";
 
 const PACK_SIZES = [2, 3, 4, 5];
 
-export function DungeonScreen({ onLeave }: { onLeave: () => void }) {
+export function DungeonScreen({
+  group,
+  encounter,
+  onLeave,
+  onStartGame,
+}: {
+  group: GroupMember[];
+  encounter?: DungeonEncounter;
+  onLeave: () => void;
+  onStartGame: (encounter: DungeonEncounter) => void;
+}) {
   const hud = useSyncExternalStore(subscribeDungeonHud, getDungeonHudState, getDungeonHudState);
   const commands = getDungeonCommands();
 
@@ -25,6 +37,9 @@ export function DungeonScreen({ onLeave }: { onLeave: () => void }) {
           </button>
           <button type="button" onClick={() => commands?.clearGroups()}>
             Clear packs
+          </button>
+          <button type="button" onClick={() => commands?.startGame()}>
+            Start game
           </button>
           <button type="button" onClick={onLeave}>
             Leave dungeon
@@ -47,7 +62,7 @@ export function DungeonScreen({ onLeave }: { onLeave: () => void }) {
           Seed {hud.seed} · {hud.smallRooms} small · {hud.mediumRooms} med · {hud.bigRooms} big ·
           boss
         </p>
-        <p>Path {hud.pathLength} tiles</p>
+        <p>Group {group.length} units · path {hud.pathLength} tiles</p>
         <p>
           Packs {hud.groupCount} · enemies {hud.enemyAlive}
         </p>
@@ -56,7 +71,7 @@ export function DungeonScreen({ onLeave }: { onLeave: () => void }) {
           readable. Dark rooms are small, mid-blue medium, pale big, wine-red is the boss.
         </p>
       </aside>
-      <DungeonCanvas />
+      <DungeonCanvas encounter={encounter} onStartGame={onStartGame} />
     </div>
   );
 }

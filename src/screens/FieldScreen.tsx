@@ -1,11 +1,20 @@
 import { useSyncExternalStore } from "react";
 import { GameCanvas } from "../GameCanvas";
 import { kitLabel } from "../sim/classes";
+import type { DungeonEncounter } from "../sim/dungeonWorld";
 import type { GroupMember } from "../sim/group";
 import { getRaidCommands } from "../view/commands";
 import { getHudState, subscribeHud } from "../view/hudStore";
 
-export function FieldScreen({ group, onLeave }: { group: GroupMember[]; onLeave: () => void }) {
+export function FieldScreen({
+  group,
+  encounter,
+  onLeave,
+}: {
+  group: GroupMember[];
+  encounter: DungeonEncounter;
+  onLeave: () => void;
+}) {
   const hud = useSyncExternalStore(subscribeHud, getHudState, getHudState);
 
   const run = (fn: keyof NonNullable<ReturnType<typeof getRaidCommands>>) => {
@@ -69,7 +78,7 @@ export function FieldScreen({ group, onLeave }: { group: GroupMember[]; onLeave:
           the next tile. M melee / R ranged under friendlies.
         </p>
       </aside>
-      <GameCanvas group={group} />
+      <GameCanvas group={group} encounter={encounter} />
     </div>
   );
 }

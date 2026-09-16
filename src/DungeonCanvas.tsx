@@ -1,8 +1,15 @@
 import { useEffect, useRef } from "react";
 import Phaser from "phaser";
+import type { DungeonEncounter } from "./sim/dungeonWorld";
 import { DungeonScene } from "./view/DungeonScene";
 
-export function DungeonCanvas() {
+export function DungeonCanvas({
+  encounter,
+  onStartGame,
+}: {
+  encounter?: DungeonEncounter;
+  onStartGame: (encounter: DungeonEncounter) => void;
+}) {
   const host = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -15,7 +22,8 @@ export function DungeonCanvas() {
       backgroundColor: "#12141a",
       audio: { noAudio: true },
     });
-    game.scene.add("dungeon", DungeonScene, true);
+    game.scene.add("dungeon", DungeonScene, false);
+    game.scene.start("dungeon", { encounter, onStartGame });
     return () => {
       game.destroy(true);
     };

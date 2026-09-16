@@ -1,10 +1,16 @@
 import { useEffect, useRef } from "react";
 import Phaser from "phaser";
-import { COLS, ROWS, TILE } from "./sim/balance";
+import type { DungeonEncounter } from "./sim/dungeonWorld";
 import type { GroupMember } from "./sim/group";
 import { RaidScene } from "./view/RaidScene";
 
-export function GameCanvas({ group }: { group: GroupMember[] }) {
+export function GameCanvas({
+  group,
+  encounter,
+}: {
+  group: GroupMember[];
+  encounter: DungeonEncounter;
+}) {
   const host = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -12,13 +18,13 @@ export function GameCanvas({ group }: { group: GroupMember[] }) {
     const game = new Phaser.Game({
       type: Phaser.AUTO,
       parent: host.current,
-      width: COLS * TILE,
-      height: ROWS * TILE,
+      width: 960,
+      height: 640,
       backgroundColor: "#1a1f16",
       audio: { noAudio: true },
     });
     game.scene.add("raid", RaidScene, false);
-    game.scene.start("raid", { group });
+    game.scene.start("raid", { group, encounter });
     return () => {
       game.destroy(true);
     };

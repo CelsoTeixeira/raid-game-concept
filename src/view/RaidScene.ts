@@ -1,9 +1,11 @@
 import Phaser from "phaser";
 import { appearanceFrames, type SpriteFrame } from "../appearance";
-import { COLS, ROWS, TILE } from "../sim/balance";
+import { TILE } from "../sim/balance";
 import { enemyTarget } from "../sim/combat";
+import { roomCenter, roomContaining, type Dungeon, type RoomSize } from "../sim/dungeon";
+import { gridCenter } from "../sim/grid";
+import type { DungeonEncounter } from "../sim/dungeonWorld";
 import type { GroupMember } from "../sim/group";
-import { WALLS } from "../sim/map";
 import type { SimUnit } from "../sim/unit";
 import { World } from "../sim/world";
 import { setRaidCommands } from "./commands";
@@ -20,6 +22,12 @@ const SLOT_COLORS = {
   dps: 0xeab308,
   healer: 0x22c55e,
 } as const;
+const ROOM_FILL: Record<RoomSize, { floor: number; path: number }> = {
+  small: { floor: 0x243044, path: 0x354a44 },
+  medium: { floor: 0x2a3344, path: 0x3f5344 },
+  big: { floor: 0x364155, path: 0x455a4c },
+  boss: { floor: 0x4a2730, path: 0x5c3d32 },
+};
 
 type UnitView = {
   id: string;
@@ -36,6 +44,7 @@ type UnitView = {
  */
 export class RaidScene extends Phaser.Scene {
   private world!: World;
+  private dungeon!: Dungeon;
   private views = new Map<string, UnitView>();
   private boxStart: Phaser.Math.Vector2 | null = null;
   private boxGfx!: Phaser.GameObjects.Graphics;
@@ -50,8 +59,9 @@ export class RaidScene extends Phaser.Scene {
     super("raid");
   }
 
-  init(data: { group: GroupMember[] }): void {
-    this.world = new World(data.group);
+  init(data: { group: GroupMember[]; encounter: DungeonEncounter }): void {
+    this.dungeon = data.encounter.dungeon;
+    this.world = new World(data.group, data.encounter);
   }
 
   preload(): void {
@@ -64,6 +74,11 @@ export class RaidScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor(0x1a1f16);
+    const worldW = this.dungeon.cols * TILE;
+    const worldH = this.dungeon.rows * TILE;
+    this.cameras.main.setBounds(0, 0, worldW, worldH);
+    this.cameras.main.setZoom(Math.min(this.scale.width / worldW, this.scale.height / worldH));
+    this.cameras.main.centerOn(worldW / 2, worldH / 2);
     this.drawField();
     this.boxGfx = this.add.graphics().setDepth(20);
     this.previewGfx = this.add.graphics().setDepth(21);
@@ -155,15 +170,58 @@ export class RaidScene extends Phaser.Scene {
 
   private drawField(): void {
     const g = this.add.graphics().setDepth(0);
-    g.fillStyle(0x24301c, 1);
-    g.fillRect(0, 0, COLS * TILE, ROWS * TILE);
-    g.lineStyle(1, 0x2f3d24, 0.5);
-    for (let c = 0; c <= COLS; c++) g.lineBetween(c * TILE, 0, c * TILE, ROWS * TILE);
-    for (let r = 0; r <= ROWS; r++) g.lineBetween(0, r * TILE, COLS * TILE, r * TILE);
-    g.fillStyle(0x4b5563, 1);
-    for (const [c, r, w, h] of WALLS) {
-      g.fillRect(c * TILE, r * TILE, w * TILE, h * TILE);
+    const dungeon = this.dungeon;
+    const path = new Set(dungeon.path.map((p) => `${p.c},${p.r}`));
+    g.fillStyle(0x12141a, 1);
+    g.fillRect(0, 0, dungeon.cols * TILE, dungeon.rows * TILE);
+    g.lineStyle(1, 0x1a2030, 0.55);
+    for (let c = 0; c <= dungeon.cols; c++) {
+      g.lineBetween(c * TILE, 0, c * TILE, dungeon.rows * TILE);
     }
+    for (let r = 0; r <= dungeon.rows; r++) {
+      g.lineBetween(0, r * TILE, dungeon.cols * TILE, r * TILE);
+    }
+    for (let r = 0; r < dungeon.rows; r++) {
+      for (let c = 0; c < dungeon.cols; c++) {
+        if (dungeon.blocked[r][c]) continue;
+        const onPath = path.has(`${c},${r}`);
+        const room = roomContaining(dungeon, c, r);
+        if (room) {
+          const fill = ROOM_FILL[room.size];
+          g.fillStyle(onPath ? fill.path : fill.floor, 1);
+        } else {
+          g.fillStyle(onPath ? 0x35463a : 0x232a38, 1);
+        }
+        g.fillRect(c * TILE, r * TILE, TILE, TILE);
+      }
+    }
+    const boss = dungeon.boss;
+    g.lineStyle(2, 0xd97706, 0.95);
+    g.strokeRect(boss.c * TILE + 1, boss.r * TILE + 1, boss.w * TILE - 2, boss.h * TILE - 2);
+    this.paintTile(g, dungeon.start, 0x166534);
+    this.paintTile(g, dungeon.end, 0xa16207);
+    const bossLabel = gridCenter(roomCenter(boss), TILE);
+    this.add
+      .text(gridCenter(dungeon.start, TILE).x, gridCenter(dungeon.start, TILE).y, "S", {
+        fontSize: "14px",
+        color: "#86efac",
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5)
+      .setDepth(2);
+    this.add
+      .text(bossLabel.x, bossLabel.y, "BOSS", {
+        fontSize: "12px",
+        color: "#fbbf24",
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5)
+      .setDepth(2);
+  }
+
+  private paintTile(g: Phaser.GameObjects.Graphics, p: { c: number; r: number }, color: number): void {
+    g.fillStyle(color, 1);
+    g.fillRect(p.c * TILE, p.r * TILE, TILE, TILE);
   }
 
   private syncViews(): void {

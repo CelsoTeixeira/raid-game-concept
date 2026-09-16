@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { appearanceFrames, type SpriteFrame } from "../appearance";
 import { TILE } from "../sim/balance";
 import { DUNGEON_COLS, DUNGEON_ROWS, roomCenter, roomContaining, type RoomSize } from "../sim/dungeon";
-import { DungeonWorld } from "../sim/dungeonWorld";
+import { DungeonWorld, type DungeonEncounter } from "../sim/dungeonWorld";
 import { gridCenter } from "../sim/grid";
 import type { SimUnit } from "../sim/unit";
 import { setDungeonCommands } from "./dungeonCommands";
@@ -28,7 +28,8 @@ type UnitView = {
 
 /** Phaser adapter for the dungeon sandbox: stamp packs onto a generated floor. */
 export class DungeonScene extends Phaser.Scene {
-  private world = new DungeonWorld();
+  private world!: DungeonWorld;
+  private onStartGame!: (encounter: DungeonEncounter) => void;
   private views = new Map<string, UnitView>();
   private mapGfx!: Phaser.GameObjects.Graphics;
   private previewGfx!: Phaser.GameObjects.Graphics;
@@ -37,6 +38,11 @@ export class DungeonScene extends Phaser.Scene {
 
   constructor() {
     super("dungeon");
+  }
+
+  init(data: { encounter?: DungeonEncounter; onStartGame: (encounter: DungeonEncounter) => void }): void {
+    this.world = new DungeonWorld(data.encounter);
+    this.onStartGame = data.onStartGame;
   }
 
   preload(): void {
@@ -60,6 +66,8 @@ export class DungeonScene extends Phaser.Scene {
     this.previewGfx = this.add.graphics().setDepth(12);
     this.input.mouse?.disableContextMenu();
     this.redrawMap();
+    this.syncViews();
+    this.drawGroups();
 
     this.input.on("pointerup", (p: Phaser.Input.Pointer) => {
       if (p.button === 2) {
@@ -88,6 +96,9 @@ export class DungeonScene extends Phaser.Scene {
       },
       setPackSize: (n) => {
         this.world.setPackSize(n);
+      },
+      startGame: () => {
+        this.onStartGame(this.world.encounter());
       },
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {

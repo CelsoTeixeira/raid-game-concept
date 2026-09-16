@@ -148,14 +148,14 @@ export function GroupScreen({
   group,
   bag,
   onBack,
-  onEnterField,
+  onEnterDungeon,
   onMoveBagItem,
   onChangeMember,
 }: {
   group: GroupMember[];
   bag: InventoryItem[];
   onBack: () => void;
-  onEnterField: () => void;
+  onEnterDungeon: () => void;
   onMoveBagItem: (itemId: string, placement: InventoryPlacement) => void;
   onChangeMember: (index: number, member: GroupMember) => void;
 }) {
@@ -202,8 +202,8 @@ export function GroupScreen({
         <button type="button" onClick={onBack}>
           Back
         </button>
-        <button type="button" onClick={onEnterField}>
-          Enter field
+        <button type="button" onClick={onEnterDungeon}>
+          Enter dungeon
         </button>
       </div>
     </main>

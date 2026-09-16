@@ -1,4 +1,4 @@
-import { COLS, ROWS, TILE } from "./balance";
+import { TILE } from "./balance";
 import { worldToGrid } from "./grid";
 import type { WorldPoint } from "./nav";
 import { inBounds } from "./path";
@@ -91,10 +91,10 @@ export function layoutSlots(
 }
 
 export function snapWalkable(blocked: boolean[][], p: WorldPoint): WorldPoint {
-  const g = worldToGrid(p.x, p.y, TILE, COLS, ROWS);
-  if (inBounds(g.c, g.r, COLS, ROWS) && !blocked[g.r][g.c]) return p;
   const rows = blocked.length;
   const cols = blocked[0]?.length ?? 0;
+  const g = worldToGrid(p.x, p.y, TILE, cols, rows);
+  if (inBounds(g.c, g.r, cols, rows) && !blocked[g.r][g.c]) return p;
   let best: WorldPoint | null = null;
   let bestD = 1e9;
   for (let r = 0; r < rows; r++) {
