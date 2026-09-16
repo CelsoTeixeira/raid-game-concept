@@ -225,6 +225,71 @@ ul {
   color: #9ca3af;
   font-size: 12px;
 }
+.character-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.kit-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.kit-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #9ca3af;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.kit-fields select {
+  background: #0c0c0c;
+  color: #e5e7eb;
+  border: 1px solid #374151;
+  padding: 8px 10px;
+  font: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.primary-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.primary-stats li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  padding: 8px 10px;
+  border: 1px solid #374151;
+  background: #0c0c0c;
+  font-size: 12px;
+}
+.primary-stats li.is-power {
+  border-color: #eab308;
+}
+.primary-stats li span:first-child {
+  color: #e5e7eb;
+}
+.primary-stats li strong {
+  color: #facc15;
+}
+.primary-stats li span:last-child {
+  grid-column: 1 / -1;
+  color: #9ca3af;
+  font-size: 11px;
+}
+.derived-stats {
+  margin: 0;
+  color: #d1d5db;
+  font-size: 12px;
+}
 .equipment-slots {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -1,4 +1,5 @@
-import type { RangeType, Role, Side, Stats } from "./types";
+import { getSpec, type GroupMember, type SpecDef } from "./classes";
+import type { Attributes, RangeType, Stats } from "./types";
 
 /** Pixel size of one pathfinding cell. Ranged combat uses world px; melee uses `MELEE_REACH`. */
 export const TILE = 32;
@@ -34,61 +35,60 @@ export function cooldownMs(attackSpeed: number): number {
   return 1000 / Math.max(0.2, attackSpeed);
 }
 
-export function makeStats(side: Side, role: Role, rangeType: RangeType): Stats {
-  if (side === "enemy") {
-    return {
-      health: 45,
-      maxHealth: 45,
-      mana: 0,
-      maxMana: 0,
-      movementSpeed: 70,
-      armor: 1,
-      attackPower: 9,
-      magicPower: 0,
-      attackSpeed: 0.7,
-      manaRegen: 0,
-    };
-  }
-  if (role === "tank") {
-    return {
-      health: 220,
-      maxHealth: 220,
-      mana: 0,
-      maxMana: 0,
-      movementSpeed: 85,
-      armor: 10,
-      attackPower: 5,
-      magicPower: 0,
-      attackSpeed: 0.9,
-      manaRegen: 0,
-    };
-  }
-  if (role === "healer") {
-    const ranged = rangeType === "ranged";
-    return {
-      health: ranged ? 75 : 90,
-      maxHealth: ranged ? 75 : 90,
-      mana: 120,
-      maxMana: 120,
-      movementSpeed: ranged ? 95 : 100,
-      armor: 2,
-      attackPower: 6,
-      magicPower: 22,
-      attackSpeed: 1,
-      manaRegen: HEALER_MANA_REGEN,
-    };
-  }
-  const ranged = rangeType === "ranged";
+export const BASE_HEALTH = 20;
+export const HEALTH_PER_VITALITY = 10;
+
+export function maxHealthFrom(vitality: number): number {
+  return BASE_HEALTH + vitality * HEALTH_PER_VITALITY;
+}
+
+export function attackPowerFrom(attributes: Attributes, spec: SpecDef): number {
+  const { strength, agility, intelligence } = attributes;
+  return Math.max(
+    1,
+    Math.round(
+      strength * (spec.attackFrom.strength ?? 0) +
+        agility * (spec.attackFrom.agility ?? 0) +
+        intelligence * (spec.attackFrom.intelligence ?? 0),
+    ),
+  );
+}
+
+export function magicPowerFrom(intelligence: number, spec: SpecDef): number {
+  return Math.round(intelligence * spec.healFromInt);
+}
+
+export function combatStatsFrom(spec: SpecDef, attributes: Attributes = spec.attributes): Stats {
+  const maxHealth = maxHealthFrom(attributes.vitality);
   return {
-    health: ranged ? 65 : 80,
-    maxHealth: ranged ? 65 : 80,
+    health: maxHealth,
+    maxHealth,
+    mana: spec.maxMana,
+    maxMana: spec.maxMana,
+    manaRegen: spec.manaRegen,
+    movementSpeed: spec.movementSpeed,
+    armor: spec.armor,
+    attackPower: attackPowerFrom(attributes, spec),
+    magicPower: magicPowerFrom(attributes.intelligence, spec),
+    attackSpeed: spec.attackSpeed,
+  };
+}
+
+export function makeEnemyStats(): Stats {
+  return {
+    health: 45,
+    maxHealth: 45,
     mana: 0,
     maxMana: 0,
-    movementSpeed: ranged ? 100 : 110,
-    armor: ranged ? 1 : 2,
-    attackPower: ranged ? 15 : 18,
+    movementSpeed: 70,
+    armor: 1,
+    attackPower: 9,
     magicPower: 0,
-    attackSpeed: ranged ? 0.95 : 1.15,
+    attackSpeed: 0.7,
     manaRegen: 0,
   };
+}
+
+export function makeFriendlyStats(member: GroupMember): Stats {
+  return combatStatsFrom(getSpec(member));
 }

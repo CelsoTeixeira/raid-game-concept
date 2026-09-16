@@ -1,5 +1,6 @@
 import { ENEMY_APPEARANCE } from "../appearance";
-import { makeStats, TILE } from "./balance";
+import { makeEnemyStats, TILE } from "./balance";
+import { ENEMY_ATTRIBUTES } from "./classes";
 import { living } from "./combat";
 import {
   countRoomsBySize,
@@ -169,8 +170,11 @@ export class DungeonWorld {
       side: "enemy",
       role: "dps",
       rangeType: "melee",
+      unitClass: null,
+      subclass: null,
+      attributes: { ...ENEMY_ATTRIBUTES },
       appearance: ENEMY_APPEARANCE,
-      stats: makeStats("enemy", "dps", "melee"),
+      stats: makeEnemyStats(),
       autoAttack: true,
       selected: false,
       cooldown: 0,

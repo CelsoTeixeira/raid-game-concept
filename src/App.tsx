@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { loadPersistedGroup, persistGroup } from "./sim/group";
+import { loadPersistedGroup, persistGroup, replaceGroupMember } from "./sim/group";
 import { moveInventoryItem, STARTER_BAG, type InventoryPlacement } from "./sim/inventory";
 import { DungeonScreen } from "./screens/DungeonScreen";
 import { FieldScreen } from "./screens/FieldScreen";
@@ -8,7 +8,7 @@ import { StartScreen } from "./screens/StartScreen";
 
 export function App() {
   const [screen, setScreen] = useState<"start" | "group" | "field" | "dungeon">("start");
-  const [group] = useState(loadPersistedGroup);
+  const [group, setGroup] = useState(loadPersistedGroup);
   const [bag, setBag] = useState(STARTER_BAG);
 
   useEffect(() => {
@@ -35,6 +35,7 @@ export function App() {
         onBack={() => setScreen("start")}
         onEnterField={() => setScreen("field")}
         onMoveBagItem={moveBagItem}
+        onChangeMember={(index, member) => setGroup((current) => replaceGroupMember(current, index, member))}
       />
     );
   }

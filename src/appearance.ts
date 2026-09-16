@@ -1,4 +1,5 @@
 import type { GroupMember } from "./sim/group";
+import { memberRangeType, memberRole } from "./sim/classes";
 
 export type SpriteFrame = { col: number; row: number };
 
@@ -45,16 +46,16 @@ export const ENEMY_APPEARANCE: CharacterAppearance = {
 };
 
 function equipmentFrames(member: GroupMember, row: number): SpriteFrame[] {
-  if (member.role === "tank") {
+  if (memberRole(member) === "tank") {
     return [
       { col: 44, row: 6 },
       { col: 37, row: 0 },
     ];
   }
-  if (member.role === "healer") {
+  if (memberRole(member) === "healer") {
     return [{ col: 46, row }];
   }
-  if (member.rangeType === "ranged") {
+  if (memberRangeType(member) === "ranged") {
     return [{ col: row === 1 ? 46 : 52, row }];
   }
   return [row === 0 ? { col: 44, row: 6 } : { col: row === 1 ? 50 : 47, row: 0 }];

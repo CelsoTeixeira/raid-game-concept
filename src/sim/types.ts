@@ -3,6 +3,15 @@ export type Role = "tank" | "healer" | "dps";
 /** Tanks and enemies are always melee regardless of spawn args. */
 export type RangeType = "melee" | "ranged";
 
+export type PrimaryStat = "vitality" | "intelligence" | "strength" | "agility";
+
+export type Attributes = {
+  vitality: number;
+  intelligence: number;
+  strength: number;
+  agility: number;
+};
+
 /** `attackSpeed` is hits per second on the shared clock. `magicPower` is heal amount. `manaRegen` is mana per second. */
 export type Stats = {
   health: number;
@@ -22,6 +31,8 @@ export type UnitSnapshot = {
   side: Side;
   role: Role;
   rangeType: RangeType;
+  unitClass: string | null;
+  subclass: string | null;
   autoAttack: boolean;
   health: number;
   maxHealth: number;

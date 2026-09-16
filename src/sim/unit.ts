@@ -1,6 +1,7 @@
 import type { CharacterAppearance } from "../appearance";
+import type { UnitClass } from "./classes";
 import type { WorldPoint } from "./nav";
-import type { RangeType, Role, Side, Stats } from "./types";
+import type { Attributes, RangeType, Role, Side, Stats } from "./types";
 
 /** Player click order. Cleared on move. */
 export type UnitOrder =
@@ -16,6 +17,9 @@ export type SimUnit = {
   side: Side;
   role: Role;
   rangeType: RangeType;
+  unitClass: UnitClass | null;
+  subclass: string | null;
+  attributes: Attributes;
   appearance: CharacterAppearance;
   stats: Stats;
   /** Hold-fire: skips auto-attack. Healers still heal unless they have an attack order. */

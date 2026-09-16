@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { GameCanvas } from "../GameCanvas";
+import { kitLabel } from "../sim/classes";
 import type { GroupMember } from "../sim/group";
 import { getRaidCommands } from "../view/commands";
 import { getHudState, subscribeHud } from "../view/hudStore";
@@ -47,7 +48,7 @@ export function FieldScreen({ group, onLeave }: { group: GroupMember[]; onLeave:
           <ul>
             {hud.selected.map((u) => (
               <li key={u.id}>
-                {u.role} {u.rangeType} hp {u.health}/{u.maxHealth}
+                {kitLabel(u.unitClass, u.subclass) ?? `${u.role} ${u.rangeType}`} hp {u.health}/{u.maxHealth}
                 {u.maxMana > 0 ? ` mana ${u.mana}/${u.maxMana}` : ""} aa {u.autoAttack ? "on" : "off"}
               </li>
             ))}

@@ -1,26 +1,50 @@
+import { CLASS_SPECS, isUnitClass, type GroupMember, type UnitClass } from "./classes";
 import type { RangeType, Role } from "./types";
 
-export type GroupMember = { role: Role; rangeType: RangeType };
+export type { GroupMember } from "./classes";
 
 /** Default group for 5-man content. */
 export const DEFAULT_GROUP: GroupMember[] = [
-  { role: "tank", rangeType: "melee" },
-  { role: "dps", rangeType: "melee" },
-  { role: "dps", rangeType: "melee" },
-  { role: "dps", rangeType: "ranged" },
-  { role: "healer", rangeType: "ranged" },
+  { unitClass: "paladin", subclass: "protection" },
+  { unitClass: "warrior", subclass: "arms" },
+  { unitClass: "rogue", subclass: "assassination" },
+  { unitClass: "mage", subclass: "fire" },
+  { unitClass: "priest", subclass: "holy" },
 ];
 
-const GROUP_STORAGE_KEY = "raid-game.group";
+const GROUP_STORAGE_KEY = "raid-game.group.v2";
 
 function isGroupMember(value: unknown): value is GroupMember {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const member = value as { unitClass?: unknown; subclass?: unknown };
+  if (!isUnitClass(member.unitClass) || typeof member.subclass !== "string") return false;
+  return member.subclass in CLASS_SPECS[member.unitClass];
+}
 
-  const member = value as Partial<GroupMember>;
+function isLegacyMember(value: unknown): value is { role: Role; rangeType: RangeType } {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const member = value as { role?: unknown; rangeType?: unknown };
   return (
     (member.role === "tank" || member.role === "healer" || member.role === "dps") &&
     (member.rangeType === "melee" || member.rangeType === "ranged")
   );
+}
+
+function fromLegacy(member: { role: Role; rangeType: RangeType }): GroupMember {
+  if (member.role === "tank") return { unitClass: "paladin", subclass: "protection" };
+  if (member.role === "healer") {
+    return member.rangeType === "melee"
+      ? { unitClass: "paladin", subclass: "holy" }
+      : { unitClass: "priest", subclass: "holy" };
+  }
+  if (member.rangeType === "ranged") return { unitClass: "mage", subclass: "fire" };
+  return { unitClass: "warrior", subclass: "arms" };
+}
+
+function parseMember(value: unknown): GroupMember | null {
+  if (isGroupMember(value)) return { unitClass: value.unitClass, subclass: value.subclass } as GroupMember;
+  if (isLegacyMember(value)) return fromLegacy(value);
+  return null;
 }
 
 export function loadPersistedGroup(): GroupMember[] {
@@ -33,9 +57,12 @@ export function loadPersistedGroup(): GroupMember[] {
     if (!stored) return fallback;
 
     const parsed: unknown = JSON.parse(stored);
-    if (!Array.isArray(parsed) || !parsed.every(isGroupMember)) return fallback;
+    if (!Array.isArray(parsed) || parsed.length === 0) return fallback;
 
-    return parsed.map(({ role, rangeType }) => ({ role, rangeType }));
+    const members = parsed.map(parseMember);
+    if (members.some((member) => member === null)) return fallback;
+
+    return members as GroupMember[];
   } catch {
     return fallback;
   }
@@ -50,3 +77,9 @@ export function persistGroup(group: GroupMember[]): void {
     // Storage can be unavailable or full; the in-memory group remains usable.
   }
 }
+
+export function replaceGroupMember(group: GroupMember[], index: number, member: GroupMember): GroupMember[] {
+  return group.map((current, i) => (i === index ? member : current));
+}
+
+export type { UnitClass };

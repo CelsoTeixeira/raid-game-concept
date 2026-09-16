@@ -1,5 +1,5 @@
 import { ENEMY_APPEARANCE, getMemberAppearance } from "../appearance";
-import { attackRange, COLS, makeStats, MAX_FRIENDLIES, ROWS, TILE } from "./balance";
+import { attackRange, COLS, makeEnemyStats, makeFriendlyStats, MAX_FRIENDLIES, ROWS, TILE } from "./balance";
 import {
   act,
   canAttack,
@@ -25,10 +25,10 @@ import { gridCenter, worldToGrid, type GridPoint } from "./grid";
 import { createBlocked } from "./map";
 import { pathToPoint, type WorldPoint } from "./nav";
 import { nearestOpen } from "./path";
+import { ENEMY_ATTRIBUTES, getSpec } from "./classes";
 import { DEFAULT_GROUP, type GroupMember } from "./group";
-import type { HudState, RangeType, Role, Side, UnitSnapshot } from "./types";
+import type { HudState, Side, UnitSnapshot } from "./types";
 import type { MoveAssign, SimUnit } from "./unit";
-import type { CharacterAppearance } from "../appearance";
 
 const GROUP_SPAWN_SLOTS: GridPoint[] = [
   { c: 5, r: 8 },
@@ -73,7 +73,7 @@ export class World {
       r: 2 + Math.floor(Math.random() * (ROWS - 4)),
     };
     const spot = nearestOpen(this.blocked, seed, () => false) ?? seed;
-    this.addUnit("enemy", "dps", "melee", spot.c, spot.r, ENEMY_APPEARANCE);
+    this.addEnemy(spot.c, spot.r);
   }
 
   selectClick(x: number, y: number, shift: boolean): void {
@@ -213,36 +213,47 @@ export class World {
     for (const [index, member] of this.group.slice(0, MAX_FRIENDLIES).entries()) {
       const slot = GROUP_SPAWN_SLOTS[index];
       if (!slot) break;
-      this.addUnit(
-        "friendly",
-        member.role,
-        member.rangeType,
-        slot.c,
-        slot.r,
-        getMemberAppearance(member, index),
-      );
+      this.addFriendly(member, slot.c, slot.r, index);
     }
   }
 
-  private addUnit(
-    side: Side,
-    role: Role,
-    rangeType: RangeType,
-    c: number,
-    r: number,
-    appearance: CharacterAppearance,
-  ): void {
-    if (side === "friendly") {
-      if (living(this.units, "friendly").length >= MAX_FRIENDLIES) return;
-    }
+  private addFriendly(member: GroupMember, c: number, r: number, index: number): void {
+    if (living(this.units, "friendly").length >= MAX_FRIENDLIES) return;
+    const spec = getSpec(member);
     const center = gridCenter({ c, r }, TILE);
     this.units.push({
-      id: `${side}-${this.nextId++}`,
-      side,
-      role,
-      rangeType: side === "enemy" || role === "tank" ? "melee" : rangeType,
-      appearance,
-      stats: makeStats(side, role, rangeType),
+      id: `friendly-${this.nextId++}`,
+      side: "friendly",
+      role: spec.role,
+      rangeType: spec.role === "tank" ? "melee" : spec.rangeType,
+      unitClass: member.unitClass,
+      subclass: member.subclass,
+      attributes: { ...spec.attributes },
+      appearance: getMemberAppearance(member, index),
+      stats: makeFriendlyStats(member),
+      autoAttack: true,
+      selected: false,
+      cooldown: 0,
+      path: [],
+      order: null,
+      threat: new Map(),
+      x: center.x,
+      y: center.y,
+    });
+  }
+
+  private addEnemy(c: number, r: number): void {
+    const center = gridCenter({ c, r }, TILE);
+    this.units.push({
+      id: `enemy-${this.nextId++}`,
+      side: "enemy",
+      role: "dps",
+      rangeType: "melee",
+      unitClass: null,
+      subclass: null,
+      attributes: { ...ENEMY_ATTRIBUTES },
+      appearance: ENEMY_APPEARANCE,
+      stats: makeEnemyStats(),
       autoAttack: true,
       selected: false,
       cooldown: 0,
@@ -436,6 +447,8 @@ export class World {
       side: u.side,
       role: u.role,
       rangeType: u.rangeType,
+      unitClass: u.unitClass,
+      subclass: u.subclass,
       autoAttack: u.autoAttack,
       health: Math.max(0, Math.round(u.stats.health)),
       maxHealth: u.stats.maxHealth,
