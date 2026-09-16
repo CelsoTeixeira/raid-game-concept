@@ -1,4 +1,4 @@
-import { getSpec, type GroupMember, type SpecDef } from "./classes";
+import type { SpecDef } from "./classes";
 import type { Attributes, RangeType, Stats } from "./types";
 
 /** Pixel size of one pathfinding cell. Ranged combat uses world px; melee uses `MELEE_REACH`. */
@@ -87,8 +87,4 @@ export function makeEnemyStats(): Stats {
     attackSpeed: 0.7,
     manaRegen: 0,
   };
-}
-
-export function makeFriendlyStats(member: GroupMember): Stats {
-  return combatStatsFrom(getSpec(member));
 }

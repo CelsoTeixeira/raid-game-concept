@@ -10,25 +10,16 @@ import {
   UNIT_CLASSES,
   classLabel,
   getSpec,
-  memberRangeType,
-  memberRole,
-  memberWithClass,
-  memberWithSpec,
   specLabel,
   type UnitClass,
 } from "../sim/classes";
-import { combatStatsFrom } from "../sim/balance";
+import {
+  EQUIPMENT_SLOTS,
+  EQUIPMENT_SLOT_LABELS,
+  characterWithClass,
+  characterWithSpec,
+} from "../sim/character";
 import { GroupBag } from "./GroupBag";
-
-const EQUIPMENT_SLOT_NAMES = [
-  "Main hand",
-  "Off hand",
-  "Pants",
-  "Chest",
-  "Amulet",
-  "Ring 1",
-  "Ring 2",
-] as const;
 
 function MemberPreview({ member, index }: { member: GroupMember; index: number }) {
   const frames = appearanceFrames(getMemberAppearance(member, index));
@@ -46,7 +37,7 @@ function MemberPreview({ member, index }: { member: GroupMember; index: number }
   );
 }
 
-function roleLabel(role: ReturnType<typeof memberRole>): string {
+function roleLabel(role: GroupMember["role"]): string {
   return role === "dps" ? "DPS" : role[0].toUpperCase() + role.slice(1);
 }
 
@@ -62,7 +53,7 @@ function CharacterPanel({
   onClose: () => void;
 }) {
   const spec = getSpec(member);
-  const combat = combatStatsFrom(spec);
+  const combat = member.stats;
   const unitLabel = `Unit ${index + 1}`;
   const specs = CLASS_SPECS[member.unitClass];
 
@@ -90,7 +81,7 @@ function CharacterPanel({
             {classLabel(member.unitClass)} · {specLabel(member)}
           </strong>
           <span>
-            {roleLabel(memberRole(member))} · {memberRangeType(member) === "melee" ? "Melee" : "Ranged"}
+            {roleLabel(member.role)} · {member.rangeType === "melee" ? "Melee" : "Ranged"}
           </span>
         </div>
         <div className="character-sheet">
@@ -99,7 +90,7 @@ function CharacterPanel({
               Class
               <select
                 value={member.unitClass}
-                onChange={(event) => onChange(memberWithClass(event.target.value as UnitClass))}
+                onChange={(event) => onChange(characterWithClass(member, event.target.value as UnitClass))}
               >
                 {UNIT_CLASSES.map((unitClass) => (
                   <option key={unitClass} value={unitClass}>
@@ -112,7 +103,7 @@ function CharacterPanel({
               Spec
               <select
                 value={member.subclass}
-                onChange={(event) => onChange(memberWithSpec(member.unitClass, event.target.value))}
+                onChange={(event) => onChange(characterWithSpec(member, event.target.value))}
               >
                 {Object.entries(specs).map(([id, def]) => (
                   <option key={id} value={id}>
@@ -126,7 +117,7 @@ function CharacterPanel({
             {PRIMARY_STATS.map((stat) => (
               <li className={spec.powerStat === stat ? "is-power" : undefined} key={stat}>
                 <span>{STAT_LABELS[stat]}</span>
-                <strong>{spec.attributes[stat]}</strong>
+                <strong>{member.attributes[stat]}</strong>
                 <span>{STAT_HELPS[stat]}</span>
               </li>
             ))}
@@ -137,12 +128,15 @@ function CharacterPanel({
             {combat.maxMana > 0 ? ` · Mana ${combat.maxMana}` : ""} · Armor {combat.armor}
           </p>
           <ul className="equipment-slots" aria-label={`${unitLabel} equipment slots`}>
-            {EQUIPMENT_SLOT_NAMES.map((slotName) => (
-              <li className="equipment-slot" key={slotName}>
-                <span>{slotName}</span>
-                <span className="equipment-slot-empty">Empty</span>
-              </li>
-            ))}
+            {EQUIPMENT_SLOTS.map((slot) => {
+              const item = member.equipment[slot];
+              return (
+                <li className="equipment-slot" key={slot}>
+                  <span>{EQUIPMENT_SLOT_LABELS[slot]}</span>
+                  {item ? <span>{item.name}</span> : <span className="equipment-slot-empty">Empty</span>}
+                </li>
+              );
+            })}
           </ul>
         </div>
       </div>
@@ -182,7 +176,7 @@ export function GroupScreen({
                 aria-controls="character-panel"
                 aria-expanded={selectedMemberIndex === index}
                 className={`member-card ${selectedMemberIndex === index ? "is-selected" : ""}`}
-                key={`${member.unitClass}-${member.subclass}-${index}`}
+                key={member.id}
                 type="button"
                 onClick={() => setSelectedMemberIndex(index)}
               >

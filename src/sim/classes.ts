@@ -225,20 +225,20 @@ export const CLASS_SPECS = {
   },
 } as const;
 
-export type GroupMember = {
+export type ClassKit = {
   [K in UnitClass]: { unitClass: K; subclass: keyof (typeof CLASS_SPECS)[K] & string };
 }[UnitClass];
 
-export function getSpec(member: GroupMember): SpecDef {
+export function getSpec(member: ClassKit): SpecDef {
   const specs = CLASS_SPECS[member.unitClass] as Record<string, SpecDef>;
   return specs[member.subclass];
 }
 
-export function memberRole(member: GroupMember): Role {
+export function memberRole(member: ClassKit): Role {
   return getSpec(member).role;
 }
 
-export function memberRangeType(member: GroupMember): RangeType {
+export function memberRangeType(member: ClassKit): RangeType {
   return getSpec(member).rangeType;
 }
 
@@ -246,7 +246,7 @@ export function classLabel(unitClass: UnitClass): string {
   return CLASS_LABELS[unitClass];
 }
 
-export function specLabel(member: GroupMember): string {
+export function specLabel(member: ClassKit): string {
   return getSpec(member).label;
 }
 
@@ -262,14 +262,14 @@ export function specIds(unitClass: UnitClass): string[] {
   return Object.keys(CLASS_SPECS[unitClass]);
 }
 
-export function memberWithClass(unitClass: UnitClass): GroupMember {
+export function memberWithClass(unitClass: UnitClass): ClassKit {
   const subclass = specIds(unitClass)[0];
-  return { unitClass, subclass } as GroupMember;
+  return { unitClass, subclass } as ClassKit;
 }
 
-export function memberWithSpec(unitClass: UnitClass, subclass: string): GroupMember {
+export function memberWithSpec(unitClass: UnitClass, subclass: string): ClassKit {
   if (!specIds(unitClass).includes(subclass)) return memberWithClass(unitClass);
-  return { unitClass, subclass } as GroupMember;
+  return { unitClass, subclass } as ClassKit;
 }
 
 export function isUnitClass(value: unknown): value is UnitClass {

@@ -1,5 +1,5 @@
 import { ENEMY_APPEARANCE, getMemberAppearance } from "../appearance";
-import { attackRange, COLS, makeEnemyStats, makeFriendlyStats, MAX_FRIENDLIES, ROWS, TILE } from "./balance";
+import { attackRange, COLS, makeEnemyStats, MAX_FRIENDLIES, ROWS, TILE } from "./balance";
 import {
   act,
   canAttack,
@@ -25,8 +25,9 @@ import { gridCenter, worldToGrid, type GridPoint } from "./grid";
 import { createBlocked } from "./map";
 import { pathToPoint, type WorldPoint } from "./nav";
 import { nearestOpen } from "./path";
-import { ENEMY_ATTRIBUTES, getSpec } from "./classes";
-import { DEFAULT_GROUP, type GroupMember } from "./group";
+import { ENEMY_ATTRIBUTES } from "./classes";
+import { copyCombatStats, type Character } from "./character";
+import { DEFAULT_GROUP } from "./group";
 import type { HudState, Side, UnitSnapshot } from "./types";
 import type { MoveAssign, SimUnit } from "./unit";
 
@@ -51,9 +52,9 @@ export class World {
   private nextId = 1;
   private heals: HealFx[] = [];
   private hits: HitFx[] = [];
-  private readonly group: GroupMember[];
+  private readonly group: Character[];
 
-  constructor(group: GroupMember[] = DEFAULT_GROUP) {
+  constructor(group: Character[] = DEFAULT_GROUP) {
     this.group = group.map((member) => ({ ...member }));
     this.spawnGroup();
   }
@@ -217,20 +218,19 @@ export class World {
     }
   }
 
-  private addFriendly(member: GroupMember, c: number, r: number, index: number): void {
+  private addFriendly(member: Character, c: number, r: number, index: number): void {
     if (living(this.units, "friendly").length >= MAX_FRIENDLIES) return;
-    const spec = getSpec(member);
     const center = gridCenter({ c, r }, TILE);
     this.units.push({
       id: `friendly-${this.nextId++}`,
       side: "friendly",
-      role: spec.role,
-      rangeType: spec.role === "tank" ? "melee" : spec.rangeType,
+      role: member.role,
+      rangeType: member.rangeType,
       unitClass: member.unitClass,
       subclass: member.subclass,
-      attributes: { ...spec.attributes },
+      attributes: { ...member.attributes },
       appearance: getMemberAppearance(member, index),
-      stats: makeFriendlyStats(member),
+      stats: copyCombatStats(member.stats),
       autoAttack: true,
       selected: false,
       cooldown: 0,
