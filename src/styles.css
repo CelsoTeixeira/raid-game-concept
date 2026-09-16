@@ -13,9 +13,11 @@ body,
 .app {
   display: flex;
   height: 100%;
+  overflow: hidden;
 }
 .hud {
   width: 280px;
+  flex-shrink: 0;
   padding: 16px;
   background: #0c0c0c;
   overflow: auto;
@@ -41,6 +43,19 @@ body,
   flex-direction: column;
   gap: 8px;
   margin: 12px 0;
+}
+.row-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.row-inline button {
+  min-width: 40px;
+}
+button.is-active {
+  border-color: #eab308;
+  background: #374151;
 }
 button {
   background: #1f2937;

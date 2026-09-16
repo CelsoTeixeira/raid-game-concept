@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { loadPersistedGroup, persistGroup } from "./sim/group";
 import { moveInventoryItem, STARTER_BAG, type InventoryPlacement } from "./sim/inventory";
+import { DungeonScreen } from "./screens/DungeonScreen";
 import { FieldScreen } from "./screens/FieldScreen";
 import { GroupScreen } from "./screens/GroupScreen";
 import { StartScreen } from "./screens/StartScreen";
 
 export function App() {
-  const [screen, setScreen] = useState<"start" | "group" | "field">("start");
+  const [screen, setScreen] = useState<"start" | "group" | "field" | "dungeon">("start");
   const [group] = useState(loadPersistedGroup);
   const [bag, setBag] = useState(STARTER_BAG);
 
@@ -18,7 +19,14 @@ export function App() {
     setBag((currentBag) => moveInventoryItem(currentBag, itemId, placement));
   };
 
-  if (screen === "start") return <StartScreen onPlay={() => setScreen("group")} />;
+  if (screen === "start") {
+    return (
+      <StartScreen onPlay={() => setScreen("group")} onDungeon={() => setScreen("dungeon")} />
+    );
+  }
+  if (screen === "dungeon") {
+    return <DungeonScreen onLeave={() => setScreen("start")} />;
+  }
   if (screen === "group") {
     return (
       <GroupScreen
