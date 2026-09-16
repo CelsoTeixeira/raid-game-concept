@@ -1,4 +1,12 @@
-export function StartScreen({ onPlay, onDungeon }: { onPlay: () => void; onDungeon: () => void }) {
+export function StartScreen({
+  onPlay,
+  onDungeon,
+  onItems,
+}: {
+  onPlay: () => void;
+  onDungeon: () => void;
+  onItems: () => void;
+}) {
   return (
     <main className="screen">
       <h1>Raid Game Concept</h1>
@@ -9,6 +17,9 @@ export function StartScreen({ onPlay, onDungeon }: { onPlay: () => void; onDunge
         </button>
         <button type="button" onClick={onDungeon}>
           Dungeon
+        </button>
+        <button type="button" onClick={onItems}>
+          Items
         </button>
       </div>
     </main>

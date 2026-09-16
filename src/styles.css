@@ -322,6 +322,12 @@ ul {
   justify-content: space-between;
   gap: 12px;
 }
+.group-bag-heading-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: end;
+  gap: 8px;
+}
 .group-bag-heading p,
 .group-bag-status,
 .group-bag-count {
@@ -332,6 +338,10 @@ ul {
 .group-bag-count {
   margin-top: 2px;
   white-space: nowrap;
+}
+.group-bag-heading-actions button {
+  padding: 6px 10px;
+  font-size: 12px;
 }
 .group-bag-board {
   position: relative;
@@ -356,15 +366,17 @@ ul {
 .group-bag-item {
   z-index: 2;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 2px;
   min-width: 0;
   min-height: 0;
   padding: 4px;
   overflow: hidden;
-  border: 1px solid #93c5fd;
-  background: #1e3a5f;
-  color: #eff6ff;
+  border: 1px solid #9ca3af;
+  background: #374151;
+  color: #e5e7eb;
   font-size: clamp(10px, 2.3vw, 12px);
   font-weight: 700;
   line-height: 1.1;
@@ -372,29 +384,40 @@ ul {
   text-overflow: ellipsis;
   white-space: normal;
 }
-.group-bag-item[data-item-id="potion"] {
-  background: #7f1d1d;
+.group-bag-item-name,
+.group-bag-item-stats {
+  min-width: 0;
+  max-width: 100%;
 }
-.group-bag-item[data-item-id="sword"] {
+.group-bag-item-stats {
+  font-size: clamp(9px, 2vw, 11px);
+  font-weight: 600;
+  opacity: 0.92;
+}
+.group-bag-item[data-rarity="gray"] {
   background: #374151;
+  border-color: #9ca3af;
+  color: #e5e7eb;
 }
-.group-bag-item[data-item-id="shield"] {
-  background: #1e40af;
+.group-bag-item[data-rarity="green"] {
+  background: #14532d;
+  border-color: #4ade80;
+  color: #dcfce7;
 }
-.group-bag-item[data-item-id="scroll"] {
-  background: #713f12;
+.group-bag-item[data-rarity="blue"] {
+  background: #1e3a8a;
+  border-color: #60a5fa;
+  color: #dbeafe;
 }
-.group-bag-item[data-item-id="torch"] {
-  background: #9a3412;
+.group-bag-item[data-rarity="purple"] {
+  background: #581c87;
+  border-color: #c084fc;
+  color: #f3e8ff;
 }
-.group-bag-item[data-item-id="ring"] {
-  background: #854d0e;
-}
-.group-bag-item[data-item-id="herb"] {
-  background: #166534;
-}
-.group-bag-item[data-item-id="rations"] {
-  background: #365314;
+.group-bag-item[data-rarity="orange"] {
+  background: #7c2d12;
+  border-color: #fb923c;
+  color: #ffedd5;
 }
 .group-bag-item.is-dragging {
   opacity: 0.55;
@@ -423,6 +446,169 @@ ul {
 .group-bag-status {
   min-height: 32px;
 }
+.item-debug-screen {
+  justify-content: flex-start;
+  overflow: auto;
+  text-align: left;
+  padding-bottom: 48px;
+}
+.item-debug-screen h1,
+.item-debug-screen > p {
+  width: min(100%, 1100px);
+  text-align: center;
+}
+.item-debug-controls,
+.item-debug-meta,
+.item-debug-ladder,
+.item-debug-table-wrap {
+  width: min(100%, 1100px);
+}
+.item-debug-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+  background: #0c0c0c;
+  border: 1px solid #374151;
+}
+.item-debug-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px 16px;
+}
+.item-debug-field > span {
+  width: 100%;
+  color: #9ca3af;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.item-debug-field label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #9ca3af;
+  font-size: 12px;
+}
+.item-debug-field select,
+.item-debug-field input {
+  min-width: 140px;
+  background: #111827;
+  color: #e5e7eb;
+  border: 1px solid #374151;
+  padding: 8px 10px;
+  font: inherit;
+}
+.item-debug-controls .row-inline {
+  margin: 0;
+}
+.item-debug-controls button[data-rarity="gray"] {
+  border-color: #9ca3af;
+}
+.item-debug-controls button[data-rarity="green"] {
+  border-color: #4ade80;
+}
+.item-debug-controls button[data-rarity="blue"] {
+  border-color: #60a5fa;
+}
+.item-debug-controls button[data-rarity="purple"] {
+  border-color: #c084fc;
+}
+.item-debug-controls button[data-rarity="orange"] {
+  border-color: #fb923c;
+}
+.item-debug-meta {
+  color: #9ca3af;
+  font-size: 12px;
+}
+.item-debug-ladder {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+.item-debug-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 132px;
+  padding: 12px;
+  border: 1px solid #9ca3af;
+  background: #374151;
+  color: #e5e7eb;
+  font-size: 12px;
+}
+.item-debug-card strong {
+  font-size: 14px;
+}
+.item-debug-card span {
+  color: inherit;
+  opacity: 0.92;
+}
+.item-debug-card[data-rarity="gray"] {
+  background: #374151;
+  border-color: #9ca3af;
+  color: #e5e7eb;
+}
+.item-debug-card[data-rarity="green"] {
+  background: #14532d;
+  border-color: #4ade80;
+  color: #dcfce7;
+}
+.item-debug-card[data-rarity="blue"] {
+  background: #1e3a8a;
+  border-color: #60a5fa;
+  color: #dbeafe;
+}
+.item-debug-card[data-rarity="purple"] {
+  background: #581c87;
+  border-color: #c084fc;
+  color: #f3e8ff;
+}
+.item-debug-card[data-rarity="orange"] {
+  background: #7c2d12;
+  border-color: #fb923c;
+  color: #ffedd5;
+}
+.item-debug-table-wrap {
+  overflow: auto;
+  border: 1px solid #374151;
+  background: #0c0c0c;
+}
+.item-debug-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.item-debug-table th,
+.item-debug-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #1f2937;
+  text-align: left;
+  white-space: nowrap;
+}
+.item-debug-table th {
+  color: #9ca3af;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.item-debug-table tbody tr[data-rarity="gray"] td:first-child {
+  color: #9ca3af;
+}
+.item-debug-table tbody tr[data-rarity="green"] td:first-child {
+  color: #4ade80;
+}
+.item-debug-table tbody tr[data-rarity="blue"] td:first-child {
+  color: #60a5fa;
+}
+.item-debug-table tbody tr[data-rarity="purple"] td:first-child {
+  color: #c084fc;
+}
+.item-debug-table tbody tr[data-rarity="orange"] td:first-child {
+  color: #fb923c;
+}
 @media (max-width: 720px) {
   .group-workspace {
     grid-template-columns: 1fr;
@@ -432,6 +618,9 @@ ul {
     max-width: 520px;
   }
   .character-panel-content {
+    grid-template-columns: 1fr;
+  }
+  .item-debug-ladder {
     grid-template-columns: 1fr;
   }
 }

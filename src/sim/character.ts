@@ -8,7 +8,7 @@ import {
   type ClassKit,
   type UnitClass,
 } from "./classes";
-import type { ItemBonuses } from "./inventory";
+import type { ItemBonuses, ItemRarity } from "./inventory";
 import type { Attributes, RangeType, Role, Stats } from "./types";
 
 export const EQUIPMENT_SLOTS = [
@@ -37,6 +37,7 @@ export type EquippedItem = {
   id: string;
   name: string;
   bonuses: ItemBonuses;
+  rarity?: ItemRarity;
 };
 
 export type Equipment = Record<EquipmentSlot, EquippedItem | null>;

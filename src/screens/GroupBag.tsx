@@ -6,6 +6,7 @@ import {
   type InventoryItem,
   type InventoryPlacement,
 } from "../sim/inventory";
+import { formatItemBonuses, formatItemBonusesShort } from "../sim/items";
 
 type DragState = {
   itemId: string;
@@ -34,9 +35,11 @@ function itemStyle(item: InventoryItem): React.CSSProperties {
 export function GroupBag({
   items,
   onMoveItem,
+  onRollItem,
 }: {
   items: InventoryItem[];
   onMoveItem: (itemId: string, placement: InventoryPlacement) => void;
+  onRollItem: () => void;
 }) {
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -146,9 +149,14 @@ export function GroupBag({
       <div className="group-bag-heading">
         <div>
           <h2 id="group-bag-title">Group bag</h2>
-          <p>5 × 5 slots · fixed orientation</p>
+          <p>5 × 5 slots · gray to orange gear</p>
         </div>
-        <span className="group-bag-count">{items.length} items</span>
+        <div className="group-bag-heading-actions">
+          <span className="group-bag-count">{items.length} items</span>
+          <button type="button" onClick={onRollItem}>
+            Roll item
+          </button>
+        </div>
       </div>
       <div
         className="group-bag-board"
@@ -169,24 +177,29 @@ export function GroupBag({
             ))}
           </div>
         ) : null}
-        {items.map((item) => (
-          <button
-            className={`group-bag-item ${drag?.itemId === item.id ? "is-dragging" : ""}`}
-            data-item-id={item.id}
-            key={item.id}
-            type="button"
-            style={itemStyle(item)}
-            aria-label={`${item.name}, ${item.width} by ${item.height} slots, column ${item.x + 1}, row ${item.y + 1}. Use arrow keys to move.`}
-            onKeyDown={(event) => handleKeyDown(event, item)}
-            onPointerDown={(event) => handlePointerDown(event, item)}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={clearDrag}
-            onLostPointerCapture={clearDrag}
-          >
-            {item.name}
-          </button>
-        ))}
+        {items.map((item) => {
+          const bonusText = formatItemBonuses(item.bonuses);
+          const shortBonuses = formatItemBonusesShort(item.bonuses);
+          return (
+            <button
+              className={`group-bag-item ${drag?.itemId === item.id ? "is-dragging" : ""}`}
+              data-rarity={item.rarity}
+              key={item.id}
+              type="button"
+              style={itemStyle(item)}
+              aria-label={`${item.name}, ${item.rarity}, ${bonusText || "no bonuses"}, ${item.width} by ${item.height} slots, column ${item.x + 1}, row ${item.y + 1}. Use arrow keys to move.`}
+              onKeyDown={(event) => handleKeyDown(event, item)}
+              onPointerDown={(event) => handlePointerDown(event, item)}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={clearDrag}
+              onLostPointerCapture={clearDrag}
+            >
+              <span className="group-bag-item-name">{item.name}</span>
+              {shortBonuses ? <span className="group-bag-item-stats">{shortBonuses}</span> : null}
+            </button>
+          );
+        })}
       </div>
       <p className="group-bag-status" aria-live="polite">
         {draggedItem && drag

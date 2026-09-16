@@ -1,7 +1,11 @@
+import type { EquipmentSlot } from "./character";
 import type { Attributes } from "./types";
 
 export const BAG_COLUMNS = 5;
 export const BAG_ROWS = 5;
+
+export const ITEM_RARITIES = ["gray", "green", "blue", "purple", "orange"] as const;
+export type ItemRarity = (typeof ITEM_RARITIES)[number];
 
 export type InventoryPlacement = {
   x: number;
@@ -17,19 +21,42 @@ export type InventoryItem = InventoryPlacement & {
   width: number;
   height: number;
   bonuses: ItemBonuses;
+  rarity: ItemRarity;
+  slot: EquipmentSlot;
 };
 
-/** Starter examples for the first group bag slice. Items keep their fixed orientation. */
-export const STARTER_BAG: InventoryItem[] = [
-  { id: "potion", name: "Potion", width: 1, height: 1, x: 0, y: 0, bonuses: {} },
-  { id: "sword", name: "Sword", width: 1, height: 3, x: 1, y: 0, bonuses: { strength: 2 } },
-  { id: "shield", name: "Shield", width: 2, height: 2, x: 3, y: 0, bonuses: { armor: 4 } },
-  { id: "scroll", name: "Scroll", width: 1, height: 2, x: 0, y: 2, bonuses: {} },
-  { id: "torch", name: "Torch", width: 2, height: 1, x: 2, y: 2, bonuses: {} },
-  { id: "ring", name: "Ring", width: 1, height: 1, x: 4, y: 2, bonuses: { vitality: 1 } },
-  { id: "herb", name: "Herb", width: 1, height: 1, x: 1, y: 3, bonuses: {} },
-  { id: "rations", name: "Rations", width: 2, height: 1, x: 3, y: 3, bonuses: {} },
-];
+export type UnplacedItem = Omit<InventoryItem, "x" | "y">;
+
+export function isItemRarity(value: unknown): value is ItemRarity {
+  return typeof value === "string" && (ITEM_RARITIES as readonly string[]).includes(value);
+}
+
+export function itemFitsAt(
+  items: InventoryItem[],
+  size: Pick<InventoryItem, "width" | "height">,
+  placement: InventoryPlacement,
+  ignoreId?: string,
+): boolean {
+  if (!Number.isInteger(placement.x) || !Number.isInteger(placement.y)) return false;
+  if (
+    placement.x < 0 ||
+    placement.y < 0 ||
+    placement.x + size.width > BAG_COLUMNS ||
+    placement.y + size.height > BAG_ROWS
+  ) {
+    return false;
+  }
+
+  return items.every((other) => {
+    if (other.id === ignoreId) return true;
+    return (
+      placement.x + size.width <= other.x ||
+      other.x + other.width <= placement.x ||
+      placement.y + size.height <= other.y ||
+      other.y + other.height <= placement.y
+    );
+  });
+}
 
 export function isInventoryPlacementValid(
   items: InventoryItem[],
@@ -37,25 +64,27 @@ export function isInventoryPlacementValid(
   placement: InventoryPlacement,
 ): boolean {
   const item = items.find((candidate) => candidate.id === itemId);
-  if (!item || !Number.isInteger(placement.x) || !Number.isInteger(placement.y)) return false;
-  if (
-    placement.x < 0 ||
-    placement.y < 0 ||
-    placement.x + item.width > BAG_COLUMNS ||
-    placement.y + item.height > BAG_ROWS
-  ) {
-    return false;
-  }
+  if (!item) return false;
+  return itemFitsAt(items, item, placement, item.id);
+}
 
-  return items.every((other) => {
-    if (other.id === itemId) return true;
-    return (
-      placement.x + item.width <= other.x ||
-      other.x + other.width <= placement.x ||
-      placement.y + item.height <= other.y ||
-      other.y + other.height <= placement.y
-    );
-  });
+export function findInventoryPlacement(
+  items: InventoryItem[],
+  size: Pick<InventoryItem, "width" | "height">,
+): InventoryPlacement | null {
+  for (let y = 0; y <= BAG_ROWS - size.height; y += 1) {
+    for (let x = 0; x <= BAG_COLUMNS - size.width; x += 1) {
+      const placement = { x, y };
+      if (itemFitsAt(items, size, placement)) return placement;
+    }
+  }
+  return null;
+}
+
+export function addInventoryItem(items: InventoryItem[], item: UnplacedItem): InventoryItem[] | null {
+  const placement = findInventoryPlacement(items, item);
+  if (!placement) return null;
+  return [...items, { ...item, ...placement }];
 }
 
 export function moveInventoryItem(

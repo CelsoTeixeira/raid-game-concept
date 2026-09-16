@@ -150,6 +150,7 @@ export function GroupScreen({
   onBack,
   onEnterDungeon,
   onMoveBagItem,
+  onRollBagItem,
   onChangeMember,
 }: {
   group: GroupMember[];
@@ -157,6 +158,7 @@ export function GroupScreen({
   onBack: () => void;
   onEnterDungeon: () => void;
   onMoveBagItem: (itemId: string, placement: InventoryPlacement) => void;
+  onRollBagItem: () => void;
   onChangeMember: (index: number, member: GroupMember) => void;
 }) {
   const [selectedMemberIndex, setSelectedMemberIndex] = useState<number | null>(null);
@@ -196,7 +198,7 @@ export function GroupScreen({
             />
           ) : null}
         </section>
-        <GroupBag items={bag} onMoveItem={onMoveBagItem} />
+        <GroupBag items={bag} onMoveItem={onMoveBagItem} onRollItem={onRollBagItem} />
       </div>
       <div className="screen-actions">
         <button type="button" onClick={onBack}>

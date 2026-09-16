@@ -10,6 +10,7 @@ import {
   EQUIPMENT_SLOTS,
 } from "./character";
 import { CLASS_SPECS, isUnitClass, type ClassKit, type UnitClass } from "./classes";
+import { isItemRarity } from "./inventory";
 import type { RangeType, Role } from "./types";
 
 export type { Character } from "./character";
@@ -46,7 +47,14 @@ function parseEquipment(value: unknown): Equipment {
   for (const slot of EQUIPMENT_SLOTS) {
     const item = raw[slot];
     if (item === null) equipment[slot] = null;
-    else if (isEquippedItem(item)) equipment[slot] = { id: item.id, name: item.name, bonuses: { ...item.bonuses } };
+    else if (isEquippedItem(item)) {
+      equipment[slot] = {
+        id: item.id,
+        name: item.name,
+        bonuses: { ...item.bonuses },
+        ...(isItemRarity(item.rarity) ? { rarity: item.rarity } : {}),
+      };
+    }
   }
   return equipment;
 }
