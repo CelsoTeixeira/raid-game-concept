@@ -91,10 +91,29 @@ button:hover {
   padding: 14px 10px;
   background: #0c0c0c;
   border: 1px solid #374151;
+  color: #e5e7eb;
+  font: inherit;
+  text-align: center;
+}
+.member-card:hover,
+.member-card.is-selected {
+  border-color: #eab308;
+  background: #1f2937;
+}
+.member-card:focus-visible {
+  outline: 3px solid #facc15;
+  outline-offset: 3px;
 }
 .member-card span {
   color: #9ca3af;
   font-size: 12px;
+}
+.member-card .member-card-unit {
+  color: #facc15;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 .member-preview {
   position: relative;
@@ -151,6 +170,71 @@ ul {
 }
 .group-roster .member-list {
   margin-top: 16px;
+}
+.character-panel {
+  margin-top: 20px;
+  padding: 18px;
+  background: #111827;
+  border: 1px solid #4b5563;
+}
+.character-panel-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.character-panel-heading h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.character-panel-heading p {
+  margin: 6px 0 0;
+  color: #9ca3af;
+  font-size: 12px;
+}
+.character-panel-content {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.7fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  margin-top: 18px;
+}
+.character-panel-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.character-panel-preview > span:last-child {
+  color: #9ca3af;
+  font-size: 12px;
+}
+.equipment-slots {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.equipment-slot {
+  min-height: 54px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid #374151;
+  background: #0c0c0c;
+  color: #e5e7eb;
+  font-size: 12px;
+}
+.equipment-slot-empty {
+  color: #6b7280;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 .group-bag-heading {
   display: flex;
@@ -266,5 +350,8 @@ ul {
   .group-roster,
   .group-bag {
     max-width: 520px;
+  }
+  .character-panel-content {
+    grid-template-columns: 1fr;
   }
 }
