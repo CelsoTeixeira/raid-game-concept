@@ -27,8 +27,8 @@ export function DungeonScreen({
         <h1>Dungeon</h1>
         <p className="hint">
           Small, medium, and big rooms linked by corridors, ending in a boss chamber on the east
-          side. The boss links to only one other room. The mossy tiles are a guaranteed walk from
-          start (S) to the boss. Left click a free floor tile to stamp an enemy pack. Right click a
+          side. Ordinary rooms seed several enemy packs with space between them so a pull does not
+          grab the whole room. Left click a free floor tile to stamp an extra pack. Right click a
           pack to remove it. No raid group in this scene.
         </p>
         <div className="row">

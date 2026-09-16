@@ -1,5 +1,5 @@
 import { ENEMY_APPEARANCE } from "../appearance";
-import { makeEnemyStats, TILE } from "./balance";
+import { ENEMY_GROUP_SEPARATION, makeEnemyStats, TILE } from "./balance";
 import { ENEMY_ATTRIBUTES } from "./classes";
 import { living } from "./combat";
 import {
@@ -47,15 +47,16 @@ export type DungeonHudState = {
 };
 
 const PACK_SIZES = [2, 3, 4, 5] as const;
-const GENERATED_PACK_SIZES: Record<Exclude<DungeonRect["size"], "boss">, number> = {
-  small: 5,
-  medium: 10,
-  big: 15,
+const GENERATED_PACKS: Record<Exclude<DungeonRect["size"], "boss">, readonly number[]> = {
+  small: [3, 2],
+  medium: [4, 3, 3],
+  big: [4, 4, 4, 3],
 };
 
 /**
- * Dungeon sandbox: walls from {@link generateDungeon}, with one seeded enemy pack in each
- * ordinary room except the entry and boss rooms. No friendlies — packs idle in place.
+ * Dungeon sandbox: walls from {@link generateDungeon}, with several seeded enemy packs in each
+ * ordinary room except the entry and boss rooms. Packs sit farther apart than social range.
+ * No friendlies — packs idle in place.
  */
 export class DungeonWorld {
   dungeon: Dungeon;
@@ -175,8 +176,10 @@ export class DungeonWorld {
     const entryRoom = roomContaining(this.dungeon, this.dungeon.start.c, this.dungeon.start.r);
     for (const room of this.dungeon.rooms) {
       if (room.size === "boss" || room === entryRoom) continue;
-      const spots = this.pickRoomTiles(room, GENERATED_PACK_SIZES[room.size], rng);
-      if (spots.length === GENERATED_PACK_SIZES[room.size]) this.addGroup(spots[0], spots);
+      for (const packSize of GENERATED_PACKS[room.size]) {
+        const spots = this.pickRoomTiles(room, packSize, rng);
+        if (spots.length === packSize) this.addGroup(spots[0], spots);
+      }
     }
   }
 
@@ -208,16 +211,27 @@ export class DungeonWorld {
       candidates[j] = temp;
     }
 
+    const foreign = this.occupiedTiles().filter(
+      (tile) => tile.c >= room.c && tile.c < room.c + room.w && tile.r >= room.r && tile.r < room.r + room.h,
+    );
+    const midC = room.c + room.w / 2;
+    const midR = room.r + room.h / 2;
+    candidates.sort((a, b) => this.anchorScore(b, foreign, midC, midR) - this.anchorScore(a, foreign, midC, midR));
+
+    const clusterReach = count <= 4 ? 1 : 2;
     for (const anchor of candidates) {
-      const taken = this.taken();
+      if (this.tooCloseToForeign(anchor, foreign)) continue;
+      const taken = new Set(foreign.map((tile) => tileKey(tile.c, tile.r)));
       const spots: GridPoint[] = [];
       const reserved = (c: number, r: number) =>
         c < room.c ||
         c >= room.c + room.w ||
         r < room.r ||
         r >= room.r + room.h ||
+        Math.max(Math.abs(c - anchor.c), Math.abs(r - anchor.r)) > clusterReach ||
         taken.has(tileKey(c, r)) ||
-        isReservedTile(this.dungeon, c, r);
+        isReservedTile(this.dungeon, c, r) ||
+        this.tooCloseToForeign({ c, r }, foreign);
       for (let i = 0; i < count; i++) {
         const spot = nearestOpen(this.dungeon.blocked, anchor, reserved);
         if (!spot) break;
@@ -227,6 +241,35 @@ export class DungeonWorld {
       if (spots.length === count) return spots;
     }
     return [];
+  }
+
+  private anchorScore(tile: GridPoint, foreign: GridPoint[], midC: number, midR: number): number {
+    const fromCenter = Math.hypot(tile.c - midC, tile.r - midR);
+    if (foreign.length === 0) return fromCenter;
+    let nearest = Infinity;
+    const here = gridCenter(tile, TILE);
+    for (const other of foreign) {
+      const there = gridCenter(other, TILE);
+      nearest = Math.min(nearest, Math.hypot(here.x - there.x, here.y - there.y));
+    }
+    return nearest + fromCenter * 0.25;
+  }
+
+  private occupiedTiles(): GridPoint[] {
+    const tiles: GridPoint[] = [];
+    for (const u of living(this.units)) {
+      tiles.push(worldToGrid(u.x, u.y, TILE, this.dungeon.cols, this.dungeon.rows));
+    }
+    return tiles;
+  }
+
+  private tooCloseToForeign(tile: GridPoint, foreign: GridPoint[]): boolean {
+    const here = gridCenter(tile, TILE);
+    for (const other of foreign) {
+      const there = gridCenter(other, TILE);
+      if (Math.hypot(here.x - there.x, here.y - there.y) <= ENEMY_GROUP_SEPARATION) return true;
+    }
+    return false;
   }
 
   private addGroup(anchor: GridPoint, spots: GridPoint[]): EnemyGroup {

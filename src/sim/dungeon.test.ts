@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { TILE } from "./balance";
-import { countBossEntrances, generateDungeon } from "./dungeon";
+import { ENEMY_SOCIAL_RANGE, TILE } from "./balance";
+import { countBossEntrances, generateDungeon, roomContaining } from "./dungeon";
 import { DungeonWorld } from "./dungeonWorld";
 import { gridCenter } from "./grid";
 import { findPath } from "./path";
@@ -49,6 +49,20 @@ describe("dungeon generation", () => {
       expect(dungeon.end.c).toBeLessThan(dungeon.boss.c + dungeon.boss.w);
       expect(dungeon.end.r).toBeGreaterThanOrEqual(dungeon.boss.r);
       expect(dungeon.end.r).toBeLessThan(dungeon.boss.r + dungeon.boss.h);
+      for (const room of dungeon.rooms) {
+        if (room.size === "small") {
+          expect(room.w).toBeGreaterThanOrEqual(8);
+          expect(room.h).toBeGreaterThanOrEqual(8);
+        }
+        if (room.size === "medium") {
+          expect(room.w).toBeGreaterThanOrEqual(11);
+          expect(room.h).toBeGreaterThanOrEqual(9);
+        }
+        if (room.size === "big") {
+          expect(room.w).toBeGreaterThanOrEqual(13);
+          expect(room.h).toBeGreaterThanOrEqual(11);
+        }
+      }
     }
   });
 
@@ -61,8 +75,53 @@ describe("dungeon generation", () => {
 });
 
 describe("dungeon packs", () => {
+  it("splits ordinary rooms into several packs spaced past social range", () => {
+    for (let seed = 0; seed < 12; seed++) {
+      const world = new DungeonWorld(seed * 4099 + 3);
+      const entry = roomContaining(world.dungeon, world.dungeon.start.c, world.dungeon.start.r);
+      const groupsByRoom = new Map<string, typeof world.groups>();
+      for (const group of world.groups) {
+        const room = roomContaining(world.dungeon, group.anchor.c, group.anchor.r);
+        if (!room || room.size === "boss" || room === entry) continue;
+        const key = `${room.c},${room.r}`;
+        const list = groupsByRoom.get(key) ?? [];
+        list.push(group);
+        groupsByRoom.set(key, list);
+      }
+
+      for (const room of world.dungeon.rooms) {
+        if (room.size === "boss" || room === entry) continue;
+        const packs = groupsByRoom.get(`${room.c},${room.r}`) ?? [];
+        expect(packs.length).toBeGreaterThanOrEqual(room.size === "small" ? 1 : 2);
+        const enemies = packs.reduce((n, pack) => n + pack.unitIds.length, 0);
+        expect(enemies).toBe(room.size === "small" ? 5 : room.size === "medium" ? 10 : 15);
+      }
+
+      for (const packs of groupsByRoom.values()) {
+        const living = packs.map((group) => ({
+          group,
+          units: group.unitIds
+            .map((id) => world.units.find((unit) => unit.id === id))
+            .filter((unit): unit is NonNullable<typeof unit> => !!unit && unit.stats.health > 0),
+        }));
+        for (let i = 0; i < living.length; i++) {
+          for (let j = i + 1; j < living.length; j++) {
+            let closest = Infinity;
+            for (const a of living[i].units) {
+              for (const b of living[j].units) {
+                closest = Math.min(closest, Math.hypot(a.x - b.x, a.y - b.y));
+              }
+            }
+            expect(closest).toBeGreaterThan(ENEMY_SOCIAL_RANGE);
+          }
+        }
+      }
+    }
+  });
+
   it("refuses the start tile and stamps a pack on open floor", () => {
     const world = new DungeonWorld(1);
+    world.clearGroups();
     const start = gridCenter(world.dungeon.start, TILE);
     expect(world.placeGroup(start.x, start.y)).toBeNull();
 
@@ -86,6 +145,7 @@ describe("dungeon packs", () => {
 
   it("removes a whole pack from a unit click", () => {
     const world = new DungeonWorld(1);
+    world.clearGroups();
     world.setPackSize(2);
     const room = world.dungeon.rooms[1];
     const at = gridCenter({ c: room.c + 1, r: room.r + 1 }, TILE);

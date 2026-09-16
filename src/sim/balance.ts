@@ -20,6 +20,12 @@ export const TANK_THREAT = 3;
 export const DPS_THREAT = 1;
 export const HEALER_THREAT = 1;
 export const MAX_FRIENDLIES = 10;
+/** Idle enemies pull when a living friendly is this close (world px). */
+export const ENEMY_ENGAGE_RANGE = TILE * 5;
+/** Idle packmates join combat if this close to an already-engaged enemy. */
+export const ENEMY_SOCIAL_RANGE = TILE * 4;
+/** Min world-px gap between different enemy packs so a pull does not chain. */
+export const ENEMY_GROUP_SEPARATION = ENEMY_SOCIAL_RANGE;
 
 export function attackRange(rangeType: RangeType): number {
   return rangeType === "ranged" ? RANGED_RANGE : MELEE_RANGE;

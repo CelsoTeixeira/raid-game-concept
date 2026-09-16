@@ -1,8 +1,8 @@
 import { CARDINALS, type GridPoint } from "./grid";
 import { findPath, inBounds } from "./path";
 
-export const DUNGEON_COLS = 48;
-export const DUNGEON_ROWS = 28;
+export const DUNGEON_COLS = 64;
+export const DUNGEON_ROWS = 40;
 
 export type TileKind = "wall" | "room" | "corridor";
 export type RoomSize = "small" | "medium" | "big" | "boss";
@@ -23,14 +23,14 @@ export type Dungeon = {
 
 type Rng = () => number;
 
-const ATTEMPTS = 36;
+const ATTEMPTS = 48;
 const BOSS_BAND = 0.58;
 
 const ROOM_SPECS: Record<RoomSize, { minW: number; maxW: number; minH: number; maxH: number }> = {
-  small: { minW: 4, maxW: 5, minH: 4, maxH: 5 },
-  medium: { minW: 6, maxW: 8, minH: 5, maxH: 7 },
-  big: { minW: 8, maxW: 10, minH: 7, maxH: 9 },
-  boss: { minW: 10, maxW: 12, minH: 8, maxH: 10 },
+  small: { minW: 8, maxW: 9, minH: 8, maxH: 9 },
+  medium: { minW: 11, maxW: 13, minH: 9, maxH: 11 },
+  big: { minW: 13, maxW: 16, minH: 11, maxH: 13 },
+  boss: { minW: 14, maxW: 16, minH: 12, maxH: 14 },
 };
 
 /** Deterministic 0..1 generator so a seed can be replayed from the HUD. */
@@ -363,10 +363,10 @@ function fallbackDungeon(seed: number): Dungeon {
   const rows = DUNGEON_ROWS;
   const { blocked, kind } = emptyGrid(cols, rows);
   const rooms: DungeonRect[] = [
-    { c: 2, r: 11, w: 5, h: 5, size: "small" },
-    { c: 10, r: 8, w: 7, h: 6, size: "medium" },
-    { c: 20, r: 9, w: 9, h: 8, size: "big" },
-    { c: 34, r: 9, w: 12, h: 10, size: "boss" },
+    { c: 2, r: 16, w: 8, h: 8, size: "small" },
+    { c: 14, r: 8, w: 12, h: 10, size: "medium" },
+    { c: 30, r: 14, w: 14, h: 12, size: "big" },
+    { c: 47, r: 13, w: 15, h: 13, size: "boss" },
   ];
   const draft = { blocked, kind, cols, rows };
   for (const room of rooms) carveRoom(draft, room);
