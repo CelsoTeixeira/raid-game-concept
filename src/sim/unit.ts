@@ -8,6 +8,9 @@ export type UnitOrder =
   | { kind: "attack"; targetId: string }
   | { kind: "heal"; targetId: string };
 
+/** Enemy brain. Friendlies stay `idle`. */
+export type UnitAi = "idle" | "combat";
+
 /**
  * Phaser-free unit.
  * `threat` is meaningful on enemies (attacker id → value). Friendlies keep an empty map.
@@ -31,6 +34,8 @@ export type SimUnit = {
   path: WorldPoint[];
   /** Click-to-heal / click-to-attack. Null means auto-acquire. */
   order: UnitOrder | null;
+  /** Enemies: stand until pulled, then chase. Friendlies unused. */
+  ai: UnitAi;
   threat: Map<string, number>;
   x: number;
   y: number;

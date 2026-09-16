@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { incomingDamage } from "./balance";
+import { ENEMY_ENGAGE_RANGE, ENEMY_SOCIAL_RANGE, incomingDamage } from "./balance";
 import { act, canAttack, isHealFx, strike } from "./combat";
 import { TILE } from "./balance";
 import { gridCenter } from "./grid";
@@ -256,6 +256,7 @@ describe("occupancy", () => {
     for (const e of enemies) {
       e.x = far.x;
       e.y = far.y;
+      e.ai = "combat";
     }
     world.tick(16);
     const goals = enemies.map((e) => {
@@ -263,5 +264,75 @@ describe("occupancy", () => {
       return last ? `${last.x},${last.y}` : `${e.x},${e.y}`;
     });
     expect(new Set(goals).size).toBe(goals.length);
+  });
+});
+
+describe("enemy ai", () => {
+  it("idle enemies do not chase from across the field", () => {
+    const world = new World();
+    world.spawnEnemy();
+    const enemy = world.units.find((u) => u.side === "enemy")!;
+    const x = enemy.x;
+    const y = enemy.y;
+    world.tick(16);
+    expect(enemy.ai).toBe("idle");
+    expect(enemy.path).toEqual([]);
+    expect(enemy.x).toBe(x);
+    expect(enemy.y).toBe(y);
+  });
+
+  it("a friendly inside engage range pulls the enemy", () => {
+    const world = new World();
+    const tank = world.units.find((u) => u.role === "tank")!;
+    world.spawnEnemy();
+    const enemy = world.units.find((u) => u.side === "enemy")!;
+    enemy.x = tank.x + ENEMY_ENGAGE_RANGE - 8;
+    enemy.y = tank.y;
+    world.tick(16);
+    expect(enemy.ai).toBe("combat");
+    expect(enemy.path.length).toBeGreaterThan(0);
+  });
+
+  it("a hit from outside engage range makes the enemy pursue", () => {
+    const world = new World();
+    const tank = world.units.find((u) => u.role === "tank")!;
+    world.spawnEnemy();
+    const enemy = world.units.find((u) => u.side === "enemy")!;
+    enemy.x = tank.x + ENEMY_ENGAGE_RANGE + 80;
+    enemy.y = tank.y;
+    strike(tank, enemy);
+    world.tick(16);
+    expect(enemy.ai).toBe("combat");
+    expect(enemy.path.length).toBeGreaterThan(0);
+  });
+
+  it("an attack order on a far enemy makes it pursue", () => {
+    const world = new World();
+    const tank = world.units.find((u) => u.role === "tank")!;
+    world.spawnEnemy();
+    const enemy = world.units.find((u) => u.side === "enemy")!;
+    tank.selected = true;
+    enemy.x = tank.x + ENEMY_ENGAGE_RANGE + 80;
+    enemy.y = tank.y;
+    expect(world.tryCommand(enemy.x, enemy.y)).toBe(true);
+    world.tick(16);
+    expect(enemy.ai).toBe("combat");
+    expect(enemy.path.length).toBeGreaterThan(0);
+  });
+
+  it("nearby packmates join once one is pulled", () => {
+    const world = new World();
+    const tank = world.units.find((u) => u.role === "tank")!;
+    world.spawnEnemy();
+    world.spawnEnemy();
+    const [pulled, mate] = world.units.filter((u) => u.side === "enemy");
+    pulled.x = tank.x + ENEMY_ENGAGE_RANGE + 80;
+    pulled.y = tank.y;
+    mate.x = pulled.x + ENEMY_SOCIAL_RANGE - 8;
+    mate.y = pulled.y;
+    strike(tank, pulled);
+    world.tick(16);
+    expect(pulled.ai).toBe("combat");
+    expect(mate.ai).toBe("combat");
   });
 });

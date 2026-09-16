@@ -327,6 +327,7 @@ export class DungeonWorld {
       cooldown: 0,
       path: [],
       order: null,
+      ai: "idle",
       threat: new Map(),
       x: center.x,
       y: center.y,

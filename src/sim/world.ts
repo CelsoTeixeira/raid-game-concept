@@ -8,6 +8,7 @@ import {
   isHealFx,
   living,
   regenMana,
+  updateEnemyAi,
   type HealFx,
   type HitFx,
 } from "./combat";
@@ -173,6 +174,7 @@ export class World {
 
   /** No combat while a unit still has a path. Units may overlap; only exact ties break. */
   tick(delta: number): void {
+    updateEnemyAi(this.units);
     for (const u of this.units) {
       if (u.stats.health <= 0) continue;
       this.stepMove(u, delta);
@@ -187,6 +189,7 @@ export class World {
     }
     this.resolveCoincident();
     this.purgeDead();
+    updateEnemyAi(this.units);
     this.updateChase();
     this.updateOrders();
   }
@@ -209,7 +212,7 @@ export class World {
     const threatLines = livingE.map((e) => {
       const t = enemyTarget(this.units, e);
       const v = t ? (e.threat.get(t.id) ?? 0) : 0;
-      return `${e.id} → ${t ? t.role : "nearest"} (${v})`;
+      return `${e.id} → ${t ? t.role : "idle"} (${v})`;
     });
     return {
       selected: living(this.units, "friendly")
@@ -279,6 +282,7 @@ export class World {
       cooldown: 0,
       path: [],
       order: null,
+      ai: "idle",
       threat: new Map(),
       x: center.x,
       y: center.y,
@@ -302,6 +306,7 @@ export class World {
       cooldown: 0,
       path: [],
       order: null,
+      ai: "idle",
       threat: new Map(),
       x: center.x,
       y: center.y,
@@ -364,7 +369,7 @@ export class World {
     };
   }
 
-  /** Enemies order the same formation move toward their target. */
+  /** Engaged enemies order the same formation move toward their target. */
   private updateChase(): void {
     const packs = new Map<string, SimUnit[]>();
     for (const u of living(this.units, "enemy")) {

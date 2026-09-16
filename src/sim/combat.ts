@@ -2,6 +2,8 @@ import {
   attackRange,
   cooldownMs,
   DPS_THREAT,
+  ENEMY_ENGAGE_RANGE,
+  ENEMY_SOCIAL_RANGE,
   HEAL_MANA_COST,
   HEALER_THREAT,
   incomingDamage,
@@ -56,22 +58,68 @@ export function nearestLiving(
   return best;
 }
 
-/** Highest threat living friendly, else nearest. Drops stale ids from `u.threat`. */
+function pruneThreat(units: SimUnit[], u: SimUnit): void {
+  for (const id of [...u.threat.keys()]) {
+    const f = units.find((x) => x.id === id && x.side === "friendly" && x.stats.health > 0);
+    if (!f) u.threat.delete(id);
+  }
+}
+
+function hasAttackOrderOn(units: SimUnit[], enemyId: string): boolean {
+  return living(units, "friendly").some((f) => f.order?.kind === "attack" && f.order.targetId === enemyId);
+}
+
+function shouldPull(units: SimUnit[], e: SimUnit): boolean {
+  pruneThreat(units, e);
+  if (e.threat.size > 0) return true;
+  if (hasAttackOrderOn(units, e.id)) return true;
+  if (nearestLiving(units, e, "friendly", ENEMY_ENGAGE_RANGE)) return true;
+  for (const other of living(units, "enemy")) {
+    if (other.id === e.id || other.ai !== "combat") continue;
+    if (dist(e, other) <= ENEMY_SOCIAL_RANGE) return true;
+  }
+  return false;
+}
+
+/**
+ * Idle until a friendly is in `ENEMY_ENGAGE_RANGE`, someone is attacking this unit,
+ * threat exists, or a packmate is already in combat nearby. Combat holds until no
+ * living friendlies remain — kiting does not drop aggro.
+ */
+export function updateEnemyAi(units: SimUnit[]): void {
+  const anyFriendly = living(units, "friendly").length > 0;
+  if (!anyFriendly) {
+    for (const e of living(units, "enemy")) {
+      if (e.ai === "combat") e.path = [];
+      e.ai = "idle";
+    }
+    return;
+  }
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const e of living(units, "enemy")) {
+      if (e.ai === "combat") continue;
+      if (!shouldPull(units, e)) continue;
+      e.ai = "combat";
+      grew = true;
+    }
+  }
+}
+
+/** Highest living threat, else nearest while in combat. Idle enemies have no target. */
 export function enemyTarget(units: SimUnit[], u: SimUnit): SimUnit | null {
+  pruneThreat(units, u);
   let bestId: string | null = null;
   let best = -1;
   for (const [id, v] of u.threat) {
-    const f = units.find((x) => x.id === id && x.side === "friendly" && x.stats.health > 0);
-    if (!f) {
-      u.threat.delete(id);
-      continue;
-    }
     if (v > best) {
       best = v;
       bestId = id;
     }
   }
   if (bestId) return units.find((x) => x.id === bestId) ?? null;
+  if (u.ai !== "combat") return null;
   return nearestLiving(units, u, "friendly", 1e9);
 }
 
@@ -203,7 +251,7 @@ function orderedTarget(units: SimUnit[], u: SimUnit): SimUnit | null {
 }
 
 /**
- * One clock tick while idle. Enemies melee their threat target in reach.
+ * One clock tick while idle. Enemies melee their combat/threat target in reach.
  * A click order beats auto-acquire: heal that ally, or swing that enemy (even if auto-attack is off).
  * Healers without an order still heal first, then weaker auto-attack.
  * Tank swings cleave nearby enemies at half power (full tank threat each).

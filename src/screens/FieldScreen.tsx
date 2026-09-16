@@ -27,8 +27,10 @@ export function FieldScreen({
         <h1>Raid POC</h1>
         <p className="hint">
           Left click select. Drag box. Shift add. Hold right click: on empty ground, preview a
-          formation move and release to go. On an enemy, attack (walk in only if out of range). On a
-          friendly, healers heal that ally (same range rule); tanks and dps keep the ground-move.
+          formation move and release to go. On an enemy, attack (walk in only if out of range); that
+          enemy then pursues. Idle enemies stay put until a friendly is close, they take a hit, or a
+          packmate is already fighting. On a friendly, healers heal that ally (same range rule);
+          tanks and dps keep the ground-move.
           A ground move cancels the attack/heal order. While previewing a move: F or mouse wheel
           cycles formation (raid / line / box). 1 raid, 2 line, 3 box. Tanks at the click, melee
           behind, ranged at the back. Labels: T tank, Dm/Dr dps, Hm/Hr healer.
