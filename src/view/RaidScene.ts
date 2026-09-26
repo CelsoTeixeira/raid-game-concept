@@ -14,7 +14,7 @@ import { HitFxLayer } from "./hitFx";
 import { setHudState } from "./hudStore";
 
 const CHARACTER_TEXTURE_KEY = "character-sheet";
-const CHARACTER_SHEET_URL = new URL("../aseets/roguelikeChar_transparent.png", import.meta.url).href;
+const CHARACTER_SHEET_URL = new URL("../assets/roguelikeChar_transparent.png", import.meta.url).href;
 const CHARACTER_CELL_SIZE = 16;
 const CHARACTER_COLUMNS = 54;
 const SLOT_COLORS = {

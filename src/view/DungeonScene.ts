@@ -9,7 +9,7 @@ import { setDungeonCommands } from "./dungeonCommands";
 import { setDungeonHudState } from "./dungeonHudStore";
 
 const CHARACTER_TEXTURE_KEY = "character-sheet";
-const CHARACTER_SHEET_URL = new URL("../aseets/roguelikeChar_transparent.png", import.meta.url).href;
+const CHARACTER_SHEET_URL = new URL("../assets/roguelikeChar_transparent.png", import.meta.url).href;
 const CHARACTER_CELL_SIZE = 16;
 const CHARACTER_COLUMNS = 54;
 const ROOM_FILL: Record<RoomSize, { floor: number; path: number }> = {
