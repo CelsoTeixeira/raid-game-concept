@@ -2,10 +2,12 @@ export function StartScreen({
   onPlay,
   onDungeon,
   onItems,
+  onCharacters,
 }: {
   onPlay: () => void;
   onDungeon: () => void;
   onItems: () => void;
+  onCharacters: () => void;
 }) {
   return (
     <main className="screen">
@@ -20,6 +22,9 @@ export function StartScreen({
         </button>
         <button type="button" onClick={onItems}>
           Items
+        </button>
+        <button type="button" onClick={onCharacters}>
+          Characters
         </button>
       </div>
     </main>

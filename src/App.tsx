@@ -5,6 +5,7 @@ import { loadPersistedGroup, persistGroup, replaceGroupMember } from "./sim/grou
 import { loadPersistedBag, moveInventoryItem, persistBag, type InventoryPlacement } from "./sim/inventory";
 import { generateStarterBag, rollItemIntoBag } from "./sim/items";
 import type { DungeonEncounter } from "./sim/dungeonWorld";
+import { CharacterDebugScreen } from "./screens/CharacterDebugScreen";
 import { DungeonScreen } from "./screens/DungeonScreen";
 import { FieldScreen } from "./screens/FieldScreen";
 import { GroupScreen } from "./screens/GroupScreen";
@@ -12,7 +13,7 @@ import { ItemDebugScreen } from "./screens/ItemDebugScreen";
 import { StartScreen } from "./screens/StartScreen";
 
 export function App() {
-  const [screen, setScreen] = useState<"start" | "group" | "field" | "dungeon" | "items">("start");
+  const [screen, setScreen] = useState<"start" | "group" | "field" | "dungeon" | "items" | "characters">("start");
   const [initial] = useState(() => {
     const group = loadPersistedGroup();
     const equipped = equippedItemIds(group);
@@ -63,6 +64,7 @@ export function App() {
           setScreen("dungeon");
         }}
         onItems={() => setScreen("items")}
+        onCharacters={() => setScreen("characters")}
       />
     );
   }
@@ -81,6 +83,9 @@ export function App() {
   }
   if (screen === "items") {
     return <ItemDebugScreen onBack={() => setScreen("start")} />;
+  }
+  if (screen === "characters") {
+    return <CharacterDebugScreen onBack={() => setScreen("start")} />;
   }
   if (screen === "group") {
     return (

@@ -113,7 +113,7 @@ export const BASE_ATTRIBUTE_POINTS = 20;
  * Every stat starts at the floor; the rest lands by per-character weights so each roll
  * leans somewhere without a fixed archetype.
  */
-export function rollBaseAttributes(rng: Rng): Attributes {
+export function rollBaseAttributes(rng: Rng, points = BASE_ATTRIBUTE_POINTS): Attributes {
   const weights = PRIMARY_STATS.map(() => 0.5 + rng.next() * 2);
   const total = weights.reduce((sum, weight) => sum + weight, 0);
   const attributes: Attributes = {
@@ -122,7 +122,7 @@ export function rollBaseAttributes(rng: Rng): Attributes {
     strength: BASE_ATTRIBUTE_FLOOR,
     agility: BASE_ATTRIBUTE_FLOOR,
   };
-  for (let point = 0; point < BASE_ATTRIBUTE_POINTS; point += 1) {
+  for (let point = 0; point < points; point += 1) {
     let roll = rng.next() * total;
     let index = 0;
     while (index < weights.length - 1 && roll >= weights[index]!) {
