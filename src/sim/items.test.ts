@@ -21,7 +21,6 @@ describe("item generation", () => {
     for (const rarity of ITEM_RARITIES) {
       const item = generateGear({ rng, rarity });
       expect(primaryBonusTotal(item.bonuses)).toBe(RARITY_BUDGET[rarity]);
-      expect(item.bonuses.armor).toBeUndefined();
     }
   });
 
@@ -68,7 +67,8 @@ describe("item generation", () => {
           y,
           bonuses: { vitality: 1 },
           rarity: "gray" as const,
-          slot: "ring1" as const,
+          kind: "ring" as const,
+          slot: "ring" as const,
         });
       }
     }

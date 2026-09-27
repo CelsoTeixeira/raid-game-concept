@@ -1,39 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { characterWithEquipment, characterWithSpec, createCharacter } from "./character";
-import { memberRole } from "./classes";
+import { characterWithEquipment, characterWithRole, createCharacter } from "./character";
 import { DEFAULT_GROUP } from "./group";
+import { HEALTH_PER_VITALITY } from "./stats";
 import { World } from "./world";
 
-describe("cached combat stats", () => {
-  it("stores combat numbers on the character when class or spec changes", () => {
-    const tank = createCharacter({ unitClass: "paladin", subclass: "protection" }, "test-tank");
-    expect(tank.stats.maxHealth).toBe(220);
-    expect(tank.stats.attackPower).toBe(5);
-    expect(tank.role).toBe("tank");
+const BASE = { vitality: 10, intelligence: 5, strength: 8, agility: 4 };
 
-    const holy = characterWithSpec(tank, "holy");
-    expect(holy.id).toBe(tank.id);
-    expect(holy.role).toBe("healer");
-    expect(holy.stats.magicPower).toBe(22);
-    expect(holy.stats.maxHealth).toBe(100);
+describe("cached combat stats", () => {
+  it("derives combat numbers from base attributes, not from role", () => {
+    const tank = createCharacter({ id: "test-tank", role: "tank", baseAttributes: BASE });
+    expect(tank.stats.maxHealth).toBe(20 + 10 * HEALTH_PER_VITALITY);
+    expect(tank.stats.attackPower).toBe(1 + BASE.strength);
+    expect(tank.stats.healPower).toBe(0);
+
+    const healer = characterWithRole(tank, "healer");
+    expect(healer.id).toBe(tank.id);
+    expect(healer.role).toBe("healer");
+    expect(healer.stats).toEqual(tank.stats);
   });
 
   it("rebuilds the cache when gear is equipped, not during combat ticks", () => {
-    const arms = createCharacter({ unitClass: "warrior", subclass: "arms" }, "test-arms");
-    const bareAp = arms.stats.attackPower;
-    const bareHp = arms.stats.maxHealth;
+    const bare = createCharacter({ id: "test-bare", role: "dps", baseAttributes: BASE });
+    const bareHp = bare.stats.maxHealth;
 
-    const withSword = characterWithEquipment(arms, "mainHand", {
+    const withSword = characterWithEquipment(bare, "mainHand", {
       id: "sword",
       name: "Sword",
       width: 1,
       height: 3,
       rarity: "gray",
+      kind: "sword",
       slot: "mainHand",
       bonuses: { strength: 2 },
     });
-    expect(withSword.attributes.strength).toBe(arms.attributes.strength + 2);
-    expect(withSword.stats.attackPower).toBeGreaterThan(bareAp);
+    expect(withSword.attributes.strength).toBe(BASE.strength + 2);
+    expect(withSword.stats.attackPower).toBeGreaterThan(bare.stats.attackPower);
 
     const withRing = characterWithEquipment(withSword, "ring1", {
       id: "ring",
@@ -41,11 +42,12 @@ describe("cached combat stats", () => {
       width: 1,
       height: 1,
       rarity: "gray",
-      slot: "ring1",
+      kind: "ring",
+      slot: "ring",
       bonuses: { vitality: 1 },
     });
-    expect(withRing.stats.maxHealth).toBe(bareHp + 10);
-    expect(withRing.stats.armor).toBe(arms.stats.armor);
+    expect(withRing.stats.maxHealth).toBe(bareHp + HEALTH_PER_VITALITY);
+    expect(withRing.stats.armor).toBe(0);
 
     const withShield = characterWithEquipment(withRing, "offHand", {
       id: "shield",
@@ -53,23 +55,25 @@ describe("cached combat stats", () => {
       width: 2,
       height: 2,
       rarity: "gray",
+      kind: "shield",
       slot: "offHand",
-      bonuses: { armor: 4 },
+      bonuses: { armor: 4, threat: 50 },
     });
-    expect(withShield.stats.armor).toBe(arms.stats.armor + 4);
+    expect(withShield.stats.armor).toBe(4);
+    expect(withShield.stats.threat).toBe(1.5);
   });
 
   it("copies the cached stats onto field units so combat can mutate health freely", () => {
     const world = new World(DEFAULT_GROUP);
-    const paladin = DEFAULT_GROUP[0];
-    const spawned = world.units.find((u) => u.unitClass === "paladin")!;
-    expect(spawned.stats.maxHealth).toBe(paladin.stats.maxHealth);
-    expect(spawned.stats.attackPower).toBe(paladin.stats.attackPower);
+    const tank = DEFAULT_GROUP[0];
+    const spawned = world.units.find((u) => u.side === "friendly" && u.role === "tank")!;
+    expect(spawned.stats.maxHealth).toBe(tank.stats.maxHealth);
+    expect(spawned.stats.attackPower).toBe(tank.stats.attackPower);
     spawned.stats.health = 10;
-    expect(paladin.stats.health).toBe(paladin.stats.maxHealth);
+    expect(tank.stats.health).toBe(tank.stats.maxHealth);
   });
 
   it("keeps the default five-man roles", () => {
-    expect(DEFAULT_GROUP.map(memberRole)).toEqual(["tank", "dps", "dps", "dps", "healer"]);
+    expect(DEFAULT_GROUP.map((member) => member.role)).toEqual(["tank", "dps", "dps", "dps", "healer"]);
   });
 });

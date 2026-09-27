@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
-import { EQUIPMENT_SLOT_LABELS, type EquipmentSlot } from "../sim/character";
-import { PRIMARY_STATS, STAT_LABELS } from "../sim/classes";
+import { GEAR_KINDS, GEAR_SLOT_LABELS, GEAR_SLOTS, type GearSlot } from "../sim/gearKinds";
+import { PRIMARY_STATS, STAT_LABELS } from "../sim/stats";
 import { ITEM_RARITIES, type ItemRarity, type UnplacedItem } from "../sim/inventory";
 import {
-  GEAR_SLOTS,
+  formatWeapon,
   generateGear,
   mulberry32,
   primaryBonusTotal,
@@ -13,7 +13,7 @@ import {
 } from "../sim/items";
 
 type RarityFilter = "any" | ItemRarity;
-type SlotFilter = "any" | (typeof GEAR_SLOTS)[number];
+type SlotFilter = "any" | GearSlot;
 
 type DebugItem = UnplacedItem & {
   key: string;
@@ -28,8 +28,16 @@ const RARITY_LABELS: Record<ItemRarity, string> = {
   orange: "Orange",
 };
 
-function slotLabel(slot: EquipmentSlot): string {
-  return slot === "ring1" ? "Ring" : EQUIPMENT_SLOT_LABELS[slot];
+function slotLabel(slot: GearSlot): string {
+  return GEAR_SLOT_LABELS[slot];
+}
+
+function traitsText(item: DebugItem): string {
+  const parts = [formatWeapon(item.kind)];
+  if (item.bonuses.armor) parts.push(`armor ${item.bonuses.armor}`);
+  if (item.bonuses.threat) parts.push(`threat ${item.bonuses.threat}%`);
+  if (item.bonuses.healing) parts.push(`healing ${item.bonuses.healing}`);
+  return parts.filter(Boolean).join(" · ") || "—";
 }
 
 function rollBatch(
@@ -72,8 +80,9 @@ function ItemCard({ item }: { item: DebugItem }) {
     <article className="item-debug-card" data-rarity={item.rarity}>
       <strong>{item.name}</strong>
       <span>
-        {RARITY_LABELS[item.rarity]} · {slotLabel(item.slot)} · {item.width}×{item.height}
+        {RARITY_LABELS[item.rarity]} · {GEAR_KINDS[item.kind].label} · {slotLabel(item.slot)} · {item.width}×{item.height}
       </span>
+      <span>{traitsText(item)}</span>
       <span>
         {PRIMARY_STATS.map((stat) => `${STAT_LABELS[stat].slice(0, 3)} ${item.bonuses[stat] ?? 0}`).join(" · ")}
       </span>
@@ -123,7 +132,7 @@ export function ItemDebugScreen({ onBack }: { onBack: () => void }) {
   return (
     <main className="screen item-debug-screen">
       <h1>Item generation</h1>
-      <p>Roll gear with pinned rarity and slot. Use the ladder to compare names and main-stat budgets.</p>
+      <p>Roll gear with pinned rarity and slot. Use the ladder to compare names, main-stat budgets, and rarity-scaled traits.</p>
 
       <section className="item-debug-controls" aria-label="Generation filters">
         <div className="item-debug-field">
@@ -211,8 +220,10 @@ export function ItemDebugScreen({ onBack }: { onBack: () => void }) {
             <tr>
               <th>Rarity</th>
               <th>Name</th>
+              <th>Kind</th>
               <th>Slot</th>
               <th>Size</th>
+              <th>Traits</th>
               {PRIMARY_STATS.map((stat) => (
                 <th key={stat}>{STAT_LABELS[stat].slice(0, 3)}</th>
               ))}
@@ -223,17 +234,19 @@ export function ItemDebugScreen({ onBack }: { onBack: () => void }) {
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={9}>No rolls yet. Roll 1 or Roll ladder to fill this log.</td>
+                <td colSpan={11}>No rolls yet. Roll 1 or Roll ladder to fill this log.</td>
               </tr>
             ) : (
               items.map((item) => (
                 <tr data-rarity={item.rarity} key={item.key}>
                   <td>{RARITY_LABELS[item.rarity]}</td>
                   <td>{item.name}</td>
+                  <td>{GEAR_KINDS[item.kind].label}</td>
                   <td>{slotLabel(item.slot)}</td>
                   <td>
                     {item.width}×{item.height}
                   </td>
+                  <td>{traitsText(item)}</td>
                   {PRIMARY_STATS.map((stat) => (
                     <td key={stat}>{item.bonuses[stat] ?? 0}</td>
                   ))}

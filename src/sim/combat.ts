@@ -1,17 +1,13 @@
 import {
-  attackRange,
+  CLEAVE_RANGE,
   cooldownMs,
-  DPS_THREAT,
   ENEMY_ENGAGE_RANGE,
   ENEMY_SOCIAL_RANGE,
+  HEAL_BELOW,
   HEAL_MANA_COST,
-  HEALER_THREAT,
-  incomingDamage,
-  MELEE_REACH,
-  TANK_CLEAVE_POWER,
-  TANK_CLEAVE_RANGE,
-  TANK_THREAT,
+  HEAL_RANGE,
 } from "./balance";
+import { incomingDamage, isRanged } from "./stats";
 import type { Side } from "./types";
 import type { SimUnit } from "./unit";
 
@@ -19,10 +15,14 @@ export function dist(a: SimUnit, b: SimUnit): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-/** Melee: within `MELEE_REACH` world px. Ranged: pixel radius. */
+/** Within the attacker's `attackRange` (world px). */
 export function canAttack(attacker: SimUnit, defender: SimUnit): boolean {
-  if (attacker.rangeType === "ranged") return dist(attacker, defender) <= attackRange("ranged");
-  return dist(attacker, defender) <= MELEE_REACH;
+  return dist(attacker, defender) <= attacker.stats.attackRange;
+}
+
+/** Any unit with healing gear can heal; only healer-role units do it on their own. */
+export function canHeal(u: SimUnit): boolean {
+  return u.stats.healPower > 0;
 }
 
 export function living(units: SimUnit[], side?: Side): SimUnit[] {
@@ -123,13 +123,12 @@ export function enemyTarget(units: SimUnit[], u: SimUnit): SimUnit | null {
   return nearestLiving(units, u, "friendly", 1e9);
 }
 
-/** Armor damage. Friendly→enemy hits add tank 3 / healer-or-dps 1 threat. */
+/** Armor-mitigated damage. Friendly→enemy hits add `damage × threat` to the enemy's table. */
 export function strike(attacker: SimUnit, defender: SimUnit, power = attacker.stats.attackPower): number {
   const amount = incomingDamage(power, defender.stats.armor);
   defender.stats.health -= amount;
   if (attacker.side === "friendly" && defender.side === "enemy") {
-    const add =
-      attacker.role === "tank" ? TANK_THREAT : attacker.role === "healer" ? HEALER_THREAT : DPS_THREAT;
+    const add = amount * attacker.stats.threat;
     defender.threat.set(attacker.id, (defender.threat.get(attacker.id) ?? 0) + add);
   }
   return amount;
@@ -154,7 +153,7 @@ export function isHealFx(fx: ActFx): fx is HealFx {
 
 function hitFx(attacker: SimUnit, defender: SimUnit, amount: number): HitFx {
   return {
-    kind: attacker.rangeType === "ranged" ? "ranged" : "melee",
+    kind: isRanged(attacker.stats) ? "ranged" : "melee",
     attackerId: attacker.id,
     targetId: defender.id,
     amount,
@@ -165,15 +164,20 @@ function hitFx(attacker: SimUnit, defender: SimUnit, amount: number): HitFx {
   };
 }
 
-function attackTarget(units: SimUnit[], from: SimUnit, side: Side): SimUnit | null {
+/**
+ * Enemy in reach to auto-attack. Tanks prefer enemies aimed at someone else (peel), then the
+ * nearest; everyone else takes the nearest.
+ */
+function attackTarget(units: SimUnit[], from: SimUnit): SimUnit | null {
   let best: SimUnit | null = null;
-  let bestD = 1e9;
+  let bestScore = Infinity;
   for (const u of units) {
-    if (u.side !== side || u.stats.health <= 0 || u.id === from.id) continue;
+    if (u.side !== "enemy" || u.stats.health <= 0) continue;
     if (!canAttack(from, u)) continue;
-    const d = dist(from, u);
-    if (d <= bestD) {
-      bestD = d;
+    let score = dist(from, u);
+    if (from.role === "tank" && enemyTarget(units, u)?.id === from.id) score += 1e6;
+    if (score <= bestScore) {
+      bestScore = score;
       best = u;
     }
   }
@@ -183,11 +187,12 @@ function attackTarget(units: SimUnit[], from: SimUnit, side: Side): SimUnit | nu
 function swing(u: SimUnit, target: SimUnit, units: SimUnit[]): HitFx[] {
   const fx: HitFx[] = [hitFx(u, target, strike(u, target))];
   u.cooldown = cooldownMs(u.stats.attackSpeed);
-  if (u.role !== "tank") return fx;
-  const splashPower = u.stats.attackPower * TANK_CLEAVE_POWER;
-  for (const e of living(units, "enemy")) {
+  if (u.stats.cleave <= 0) return fx;
+  const opponents = u.side === "friendly" ? "enemy" : "friendly";
+  const splashPower = u.stats.attackPower * u.stats.cleave;
+  for (const e of living(units, opponents)) {
     if (e.id === target.id) continue;
-    if (dist(u, e) > TANK_CLEAVE_RANGE) continue;
+    if (dist(u, e) > CLEAVE_RANGE) continue;
     fx.push(hitFx(u, e, strike(u, e, splashPower)));
   }
   return fx;
@@ -206,7 +211,7 @@ export type HealFx = {
 function applyHeal(healer: SimUnit, target: SimUnit): HealFx | null {
   healer.stats.mana -= HEAL_MANA_COST;
   const before = target.stats.health;
-  target.stats.health = Math.min(target.stats.maxHealth, target.stats.health + healer.stats.magicPower);
+  target.stats.health = Math.min(target.stats.maxHealth, target.stats.health + healer.stats.healPower);
   const amount = Math.round(target.stats.health - before);
   if (amount <= 0) return null;
   return {
@@ -222,22 +227,25 @@ function applyHeal(healer: SimUnit, target: SimUnit): HealFx | null {
 
 /** Heal a specific living damaged friendly in range. Spends mana, does not write threat. */
 export function tryHealTarget(healer: SimUnit, target: SimUnit): HealFx | null {
+  if (!canHeal(healer)) return null;
   if (target.side !== "friendly" || target.stats.health <= 0) return null;
   if (target.stats.health >= target.stats.maxHealth) return null;
   if (healer.stats.mana < HEAL_MANA_COST) return null;
-  if (dist(healer, target) > attackRange(healer.rangeType)) return null;
+  if (dist(healer, target) > HEAL_RANGE) return null;
   return applyHeal(healer, target);
 }
 
-/** Lowest-hp damaged friendly in heal range. Spends mana, does not write threat. */
+/** Most-hurt friendly (by fraction) below `HEAL_BELOW` in heal range. Spends mana, no threat. */
 export function tryHeal(units: SimUnit[], healer: SimUnit): HealFx | null {
-  if (healer.stats.mana < HEAL_MANA_COST) return null;
-  const range = attackRange(healer.rangeType);
+  if (!canHeal(healer) || healer.stats.mana < HEAL_MANA_COST) return null;
   let best: SimUnit | null = null;
+  let bestFraction = HEAL_BELOW;
   for (const f of living(units, "friendly")) {
-    if (f.stats.health >= f.stats.maxHealth) continue;
-    if (dist(healer, f) > range) continue;
-    if (!best || f.stats.health < best.stats.health) best = f;
+    const fraction = f.stats.health / f.stats.maxHealth;
+    if (fraction >= bestFraction) continue;
+    if (dist(healer, f) > HEAL_RANGE) continue;
+    bestFraction = fraction;
+    best = f;
   }
   if (!best) return null;
   return applyHeal(healer, best);
@@ -251,10 +259,10 @@ function orderedTarget(units: SimUnit[], u: SimUnit): SimUnit | null {
 }
 
 /**
- * One clock tick while idle. Enemies melee their combat/threat target in reach.
+ * One clock tick while idle. Enemies attack their combat/threat target in reach.
  * A click order beats auto-acquire: heal that ally, or swing that enemy (even if auto-attack is off).
- * Healers without an order still heal first, then weaker auto-attack.
- * Tank swings cleave nearby enemies at half power (full tank threat each).
+ * Healer-role units heal the most-hurt ally first, then attack. Tanks peel enemies off allies.
+ * Cleaving weapons splash nearby enemies (threat per hit).
  */
 export function act(units: SimUnit[], u: SimUnit): ActFx[] {
   if (u.side === "enemy") {
@@ -284,7 +292,7 @@ export function act(units: SimUnit[], u: SimUnit): ActFx[] {
     }
   }
   if (!u.autoAttack) return [];
-  const target = attackTarget(units, u, "enemy");
+  const target = attackTarget(units, u);
   if (!target) return [];
   return swing(u, target, units);
 }

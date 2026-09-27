@@ -1,6 +1,5 @@
 import { useSyncExternalStore } from "react";
 import { GameCanvas } from "../GameCanvas";
-import { kitLabel } from "../sim/classes";
 import type { DungeonEncounter } from "../sim/dungeonWorld";
 import type { GroupMember } from "../sim/group";
 import { getRaidCommands } from "../view/commands";
@@ -29,11 +28,11 @@ export function FieldScreen({
           Left click select. Drag box. Shift add. Hold right click: on empty ground, preview a
           formation move and release to go. On an enemy, attack (walk in only if out of range); that
           enemy then pursues. Idle enemies stay put until a friendly is close, they take a hit, or a
-          packmate is already fighting. On a friendly, healers heal that ally (same range rule);
-          tanks and dps keep the ground-move.
+          packmate is already fighting. On a friendly, units with healing gear heal that ally
+          (same range rule); everyone else keeps the ground-move.
           A ground move cancels the attack/heal order. While previewing a move: F or mouse wheel
-          cycles formation (raid / line / box). 1 raid, 2 line, 3 box. Tanks at the click, melee
-          behind, ranged at the back. Labels: T tank, Dm/Dr dps, Hm/Hr healer.
+          cycles formation (raid / line / box). 1 raid, 2 line, 3 box. Tank role at the click, melee
+          reach behind, ranged reach at the back. Labels: T tank, Dm/Dr dps, Hm/Hr healer.
         </p>
         <div className="row">
           <button type="button" onClick={() => run("spawnEnemy")}>
@@ -59,7 +58,7 @@ export function FieldScreen({
           <ul>
             {hud.selected.map((u) => (
               <li key={u.id}>
-                {kitLabel(u.unitClass, u.subclass) ?? `${u.role} ${u.rangeType}`} hp {u.health}/{u.maxHealth}
+                {u.role} {u.ranged ? "ranged" : "melee"} hp {u.health}/{u.maxHealth}
                 {u.maxMana > 0 ? ` mana ${u.mana}/${u.maxMana}` : ""} aa {u.autoAttack ? "on" : "off"}
               </li>
             ))}

@@ -8,7 +8,7 @@ import {
   type InventoryItem,
   type InventoryPlacement,
 } from "../sim/inventory";
-import { formatItemBonuses, formatItemBonusesShort } from "../sim/items";
+import { formatItemBonuses, formatItemBonusesShort, formatWeapon } from "../sim/items";
 import type { ItemDrag, ItemDragHandlers, StartItemDrag } from "./itemDrag";
 
 const KEY_OFFSETS: Record<string, InventoryPlacement> = {
@@ -127,7 +127,7 @@ export function GroupBag({
           </div>
         ) : null}
         {items.map((item) => {
-          const bonusText = formatItemBonuses(item.bonuses);
+          const bonusText = [formatWeapon(item.kind), formatItemBonuses(item.bonuses)].filter(Boolean).join(", ");
           const shortBonuses = formatItemBonusesShort(item.bonuses);
           const isDragging = drag?.source.from === "bag" && drag.source.item.id === item.id;
           return (

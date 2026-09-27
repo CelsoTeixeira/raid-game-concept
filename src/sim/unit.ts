@@ -1,7 +1,6 @@
 import type { CharacterAppearance } from "../appearance";
-import type { UnitClass } from "./classes";
 import type { WorldPoint } from "./nav";
-import type { Attributes, RangeType, Role, Side, Stats } from "./types";
+import type { Role, Side, Stats } from "./types";
 
 /** Player click order. Cleared on move. */
 export type UnitOrder =
@@ -18,14 +17,11 @@ export type UnitAi = "idle" | "combat";
 export type SimUnit = {
   id: string;
   side: Side;
+  /** Behavior only; reach, healing, and threat come from `stats`. */
   role: Role;
-  rangeType: RangeType;
-  unitClass: UnitClass | null;
-  subclass: string | null;
-  attributes: Attributes;
   appearance: CharacterAppearance;
   stats: Stats;
-  /** Hold-fire: skips auto-attack. Healers still heal unless they have an attack order. */
+  /** Hold-fire: skips auto-attack. Healer-role units still heal unless they have an attack order. */
   autoAttack: boolean;
   selected: boolean;
   /** Remaining ms on the single attack/heal clock. */

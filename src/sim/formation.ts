@@ -1,5 +1,6 @@
 import { TILE } from "./balance";
 import { worldToGrid } from "./grid";
+import { isRanged } from "./stats";
 import type { WorldPoint } from "./nav";
 import { inBounds } from "./path";
 import type { SimUnit } from "./unit";
@@ -14,15 +15,15 @@ export type Facing = { fx: number; fy: number; rx: number; ry: number };
 
 export function rankOf(u: SimUnit): 0 | 1 | 2 {
   if (u.role === "tank") return 0;
-  if (u.rangeType === "melee") return 1;
+  if (!isRanged(u.stats)) return 1;
   return 2;
 }
 
-/** Short tag on the move preview: tank / melee-dps / ranged-dps / healer. */
+/** Short tag on the move preview: role plus melee/ranged reach from stats. */
 export function slotLabel(u: SimUnit): string {
   if (u.role === "tank") return "T";
-  if (u.role === "healer") return u.rangeType === "ranged" ? "Hr" : "Hm";
-  return u.rangeType === "ranged" ? "Dr" : "Dm";
+  if (u.role === "healer") return isRanged(u.stats) ? "Hr" : "Hm";
+  return isRanged(u.stats) ? "Dr" : "Dm";
 }
 
 export function facingFrom(from: WorldPoint, to: WorldPoint, fallback: Facing): Facing {

@@ -1,15 +1,7 @@
-import { combatStatsFrom } from "./balance";
-import {
-  getSpec,
-  memberRangeType,
-  memberRole,
-  memberWithClass,
-  memberWithSpec,
-  type ClassKit,
-  type UnitClass,
-} from "./classes";
-import type { ItemBonuses, UnplacedItem } from "./inventory";
-import type { Attributes, RangeType, Role, Stats } from "./types";
+import { GEAR_KINDS, type GearSlot } from "./gearKinds";
+import type { UnplacedItem } from "./inventory";
+import { addAttributes, deriveStats, UNARMED, type GearTotals } from "./stats";
+import type { Attributes, Role, Stats } from "./types";
 
 export const EQUIPMENT_SLOTS = [
   "mainHand",
@@ -33,27 +25,45 @@ export const EQUIPMENT_SLOT_LABELS: Record<EquipmentSlot, string> = {
   ring2: "Ring 2",
 };
 
+export const ROLES: readonly Role[] = ["tank", "dps", "healer"];
+
+export const ROLE_LABELS: Record<Role, string> = {
+  tank: "Tank",
+  dps: "DPS",
+  healer: "Healer",
+};
+
+export const ROLE_HELPS: Record<Role, string> = {
+  tank: "Goes after enemies attacking allies.",
+  dps: "Attacks the nearest enemy.",
+  healer: "Heals hurt allies, attacks when nobody needs it.",
+};
+
 /** Equipped gear keeps its bag footprint and slot so it can go back into the bag. */
 export type EquippedItem = UnplacedItem;
 
 export type Equipment = Record<EquipmentSlot, EquippedItem | null>;
 
-/** Slots an item can go in. Rings roll as `ring1` and fit either ring slot. */
-export function slotsForItem(itemSlot: EquipmentSlot): EquipmentSlot[] {
-  return itemSlot === "ring1" || itemSlot === "ring2" ? ["ring1", "ring2"] : [itemSlot];
+/** Equipment slots an item can go in. Rings fit either ring slot. */
+export function slotsForItem(itemSlot: GearSlot): EquipmentSlot[] {
+  return itemSlot === "ring" ? ["ring1", "ring2"] : [itemSlot];
 }
 
-/**
- * Roster character. `attributes` and `stats` are a cache.
- * Call {@link refreshCombat} only when class, spec, or gear changes — gameplay reads the cache.
- */
-export type Character = ClassKit & {
+/** Source of truth that gets saved. Stats come from here. */
+export type CharacterDraft = {
   id: string;
+  baseAttributes: Attributes;
   equipment: Equipment;
+  role: Role;
+};
+
+/**
+ * Roster character. `attributes` (base + gear) and `stats` are a cache.
+ * Call {@link refreshCombat} when base attributes or gear change — gameplay reads the cache.
+ */
+export type Character = CharacterDraft & {
   attributes: Attributes;
   stats: Stats;
-  role: Role;
-  rangeType: RangeType;
 };
 
 export function emptyEquipment(): Equipment {
@@ -68,61 +78,46 @@ export function emptyEquipment(): Equipment {
   };
 }
 
-function addBonuses(base: Attributes, bonuses: ItemBonuses): Attributes {
-  return {
-    vitality: base.vitality + (bonuses.vitality ?? 0),
-    intelligence: base.intelligence + (bonuses.intelligence ?? 0),
-    strength: base.strength + (bonuses.strength ?? 0),
-    agility: base.agility + (bonuses.agility ?? 0),
-  };
-}
-
-function gearTotals(equipment: Equipment): { attributes: Attributes; armor: number } {
+function gearTotals(equipment: Equipment): { attributes: Partial<Attributes>; totals: GearTotals } {
   let attributes: Attributes = { vitality: 0, intelligence: 0, strength: 0, agility: 0 };
-  let armor = 0;
+  const totals: GearTotals = { armor: 0, threat: 0, healing: 0 };
   for (const slot of EQUIPMENT_SLOTS) {
     const item = equipment[slot];
     if (!item) continue;
-    attributes = addBonuses(attributes, item.bonuses);
-    armor += item.bonuses.armor ?? 0;
+    attributes = addAttributes(attributes, item.bonuses);
+    totals.armor += item.bonuses.armor ?? 0;
+    totals.threat += item.bonuses.threat ?? 0;
+    totals.healing += item.bonuses.healing ?? 0;
   }
-  return { attributes, armor };
+  return { attributes, totals };
 }
 
-export type CharacterDraft = ClassKit & {
-  id: string;
-  equipment: Equipment;
-};
+function weaponOf(equipment: Equipment) {
+  const mainHand = equipment.mainHand;
+  return (mainHand && GEAR_KINDS[mainHand.kind].weapon) || UNARMED;
+}
 
-/** Rebuild cached combat numbers. Only call from organizer-style gear/class/spec edits. */
+/** Rebuild cached attributes and combat numbers from base attributes and gear. */
 export function refreshCombat(draft: CharacterDraft): Character {
-  const spec = getSpec(draft);
   const gear = gearTotals(draft.equipment);
-  const attributes = addBonuses(spec.attributes, gear.attributes);
-  const stats = combatStatsFrom(spec, attributes);
-  stats.armor += gear.armor;
+  const attributes = addAttributes(draft.baseAttributes, gear.attributes);
   return {
     ...draft,
     attributes,
-    stats,
-    role: memberRole(draft),
-    rangeType: spec.role === "tank" ? "melee" : memberRangeType(draft),
+    stats: deriveStats(attributes, weaponOf(draft.equipment), gear.totals),
   };
 }
 
-export function createCharacter(kit: ClassKit, id: string): Character {
-  return refreshCombat({ ...kit, id, equipment: emptyEquipment() });
+export function createCharacter(draft: Omit<CharacterDraft, "equipment"> & { equipment?: Equipment }): Character {
+  return refreshCombat({ ...draft, equipment: draft.equipment ?? emptyEquipment() });
 }
 
-export function characterWithClass(character: Character, unitClass: UnitClass): Character {
-  return refreshCombat({ ...character, ...memberWithClass(unitClass) });
+export function characterWithRole(character: Character, role: Role): Character {
+  return { ...character, role };
 }
 
-export function characterWithSpec(character: Character, subclass: string): Character {
-  return refreshCombat({
-    ...character,
-    ...memberWithSpec(character.unitClass, subclass),
-  });
+export function characterWithBaseAttributes(character: Character, baseAttributes: Attributes): Character {
+  return refreshCombat({ ...character, baseAttributes });
 }
 
 export function characterWithEquipment(
@@ -134,6 +129,29 @@ export function characterWithEquipment(
     ...character,
     equipment: { ...character.equipment, [slot]: item },
   });
+}
+
+/** Warnings when gear does not support the chosen role. Mismatches are allowed. */
+export function roleHints(character: Character): string[] {
+  const hints: string[] = [];
+  if (character.role === "healer" && character.stats.healPower <= 0) {
+    hints.push("No healing gear (wand or tome): this healer will only attack.");
+  }
+  if (character.role === "tank" && character.stats.threat <= 1) {
+    hints.push("No threat gear (shield): damage dealers may pull enemies off this tank.");
+  }
+  return hints;
+}
+
+export function equippedItemIds(characters: readonly Character[]): Set<string> {
+  const ids = new Set<string>();
+  for (const character of characters) {
+    for (const slot of EQUIPMENT_SLOTS) {
+      const item = character.equipment[slot];
+      if (item) ids.add(item.id);
+    }
+  }
+  return ids;
 }
 
 export function copyCombatStats(stats: Stats): Stats {

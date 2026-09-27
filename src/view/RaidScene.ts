@@ -1,11 +1,12 @@
 import Phaser from "phaser";
 import { appearanceFrames, type SpriteFrame } from "../appearance";
 import { TILE } from "../sim/balance";
-import { enemyTarget } from "../sim/combat";
+import { canHeal, enemyTarget } from "../sim/combat";
 import { roomCenter, roomContaining, type Dungeon, type RoomSize } from "../sim/dungeon";
 import { gridCenter } from "../sim/grid";
 import type { DungeonEncounter } from "../sim/dungeonWorld";
 import type { GroupMember } from "../sim/group";
+import { isRanged } from "../sim/stats";
 import type { SimUnit } from "../sim/unit";
 import { World } from "../sim/world";
 import { setRaidCommands } from "./commands";
@@ -244,7 +245,7 @@ export class RaidScene extends Phaser.Scene {
     const ring = this.add.circle(0, 0, 18, 0x000000, 0).setStrokeStyle(2, 0xfef08a, 0);
     const hpBar = this.add.rectangle(0, -20, 22, 3, 0x22c55e).setOrigin(0.5);
     const manaBar = this.add.rectangle(0, -16, 22, 2, 0x38bdf8).setOrigin(0.5);
-    manaBar.setVisible(u.stats.maxMana > 0);
+    manaBar.setVisible(canHeal(u) && u.stats.maxMana > 0);
     const label = this.add.text(0, 16, "", { fontSize: "9px", color: "#e5e7eb" }).setOrigin(0.5);
     body.add([...spriteLayers, ring, hpBar, manaBar, label]);
     return { id: u.id, body, ring, hpBar, manaBar, label };
@@ -303,7 +304,7 @@ export class RaidScene extends Phaser.Scene {
       this.previewGfx.lineStyle(1, color, 0.95);
       this.previewGfx.strokeCircle(command.x, command.y, 16);
       for (const u of selected) {
-        if (command.kind === "heal" && u.role !== "healer") continue;
+        if (command.kind === "heal" && !canHeal(u)) continue;
         this.previewGfx.lineBetween(u.x, u.y, command.x, command.y);
       }
       return;
@@ -347,7 +348,7 @@ export class RaidScene extends Phaser.Scene {
         const t = enemyTarget(this.world.units, u);
         view.label.setText(t ? t.role.slice(0, 1) : "-");
       } else {
-        view.label.setText(u.rangeType === "ranged" ? "R" : "M");
+        view.label.setText(isRanged(u.stats) ? "R" : "M");
       }
     }
   }

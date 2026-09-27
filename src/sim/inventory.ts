@@ -1,11 +1,11 @@
-import { EQUIPMENT_SLOTS, type EquipmentSlot } from "./character";
+import { GEAR_KINDS, isGearKindId, type GearKindId, type GearSlot } from "./gearKinds";
 import type { Attributes } from "./types";
 
 export const BAG_COLUMNS = 5;
 export const BAG_ROWS = 5;
 
-const BAG_STORAGE_KEY = "raid-game.bag.v1";
-const BONUS_KEYS = ["vitality", "intelligence", "strength", "agility", "armor"] as const;
+const BAG_STORAGE_KEY = "raid-game.bag.v2";
+const BONUS_KEYS = ["vitality", "intelligence", "strength", "agility", "armor", "threat", "healing"] as const;
 
 export const ITEM_RARITIES = ["gray", "green", "blue", "purple", "orange"] as const;
 export type ItemRarity = (typeof ITEM_RARITIES)[number];
@@ -15,8 +15,11 @@ export type InventoryPlacement = {
   y: number;
 };
 
-/** Additive bonuses applied when the item is equipped. Combat stats are not stored on the item. */
-export type ItemBonuses = Partial<Attributes> & { armor?: number };
+/**
+ * Additive bonuses applied when the item is equipped. `threat` is percent.
+ * Weapon traits (damage, speed, range, cleave) come from the item kind, not bonuses.
+ */
+export type ItemBonuses = Partial<Attributes> & { armor?: number; threat?: number; healing?: number };
 
 export type InventoryItem = InventoryPlacement & {
   id: string;
@@ -25,7 +28,8 @@ export type InventoryItem = InventoryPlacement & {
   height: number;
   bonuses: ItemBonuses;
   rarity: ItemRarity;
-  slot: EquipmentSlot;
+  kind: GearKindId;
+  slot: GearSlot;
 };
 
 export type UnplacedItem = Omit<InventoryItem, "x" | "y">;
@@ -104,21 +108,18 @@ export function moveInventoryItem(
   });
 }
 
-function isEquipmentSlot(value: unknown): value is EquipmentSlot {
-  return typeof value === "string" && (EQUIPMENT_SLOTS as readonly string[]).includes(value);
-}
-
 function isPositiveInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
-/** Validates stored gear, from the bag or an equipment slot. */
+/** Validates stored gear, from the bag or an equipment slot. The slot must match the kind. */
 export function parseGearItem(value: unknown): UnplacedItem | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
   if (typeof raw.id !== "string" || typeof raw.name !== "string") return null;
   if (!isPositiveInteger(raw.width) || !isPositiveInteger(raw.height)) return null;
-  if (!isItemRarity(raw.rarity) || !isEquipmentSlot(raw.slot)) return null;
+  if (!isItemRarity(raw.rarity) || !isGearKindId(raw.kind)) return null;
+  if (raw.slot !== GEAR_KINDS[raw.kind].slot) return null;
   if (typeof raw.bonuses !== "object" || raw.bonuses === null) return null;
 
   const rawBonuses = raw.bonuses as Record<string, unknown>;
@@ -135,12 +136,16 @@ export function parseGearItem(value: unknown): UnplacedItem | null {
     height: raw.height,
     bonuses,
     rarity: raw.rarity,
-    slot: raw.slot,
+    kind: raw.kind,
+    slot: GEAR_KINDS[raw.kind].slot,
   };
 }
 
-/** Saved bag, or null when nothing valid is stored. */
-export function loadPersistedBag(): InventoryItem[] | null {
+/**
+ * Saved bag, or null when nothing is stored. Invalid, overlapping, or duplicate entries are
+ * dropped one by one; `excludeIds` drops items that already live elsewhere (equipped gear).
+ */
+export function loadPersistedBag(excludeIds: ReadonlySet<string> = new Set()): InventoryItem[] | null {
   if (typeof window === "undefined") return null;
 
   try {
@@ -150,13 +155,15 @@ export function loadPersistedBag(): InventoryItem[] | null {
     const parsed: unknown = JSON.parse(stored);
     if (!Array.isArray(parsed)) return null;
 
+    const seen = new Set(excludeIds);
     let bag: InventoryItem[] = [];
     for (const raw of parsed) {
       const item = parseGearItem(raw);
-      if (!item) return null;
+      if (!item || seen.has(item.id)) continue;
       const { x, y } = raw as { x?: unknown; y?: unknown };
-      if (typeof x !== "number" || typeof y !== "number") return null;
-      if (!itemFitsAt(bag, item, { x, y })) return null;
+      if (typeof x !== "number" || typeof y !== "number") continue;
+      if (!itemFitsAt(bag, item, { x, y })) continue;
+      seen.add(item.id);
       bag = [...bag, { ...item, x, y }];
     }
     return bag;

@@ -1,7 +1,6 @@
 export type Side = "friendly" | "enemy";
+/** Behavior order picked on the group screen. Grants no stats. */
 export type Role = "tank" | "healer" | "dps";
-/** Tanks and enemies are always melee regardless of spawn args. */
-export type RangeType = "melee" | "ranged";
 
 export type PrimaryStat = "vitality" | "intelligence" | "strength" | "agility";
 
@@ -12,7 +11,12 @@ export type Attributes = {
   agility: number;
 };
 
-/** `attackSpeed` is hits per second on the shared clock. `magicPower` is heal amount. `manaRegen` is mana per second. */
+/**
+ * Derived from attributes and gear by `deriveStats`.
+ * `attackSpeed` is hits per second on the shared clock. `attackRange` is world px.
+ * `healPower` is 0 without healing gear. `threat` multiplies damage into threat.
+ * `cleave` is the fraction of attack power splashed onto nearby enemies.
+ */
 export type Stats = {
   health: number;
   maxHealth: number;
@@ -22,17 +26,18 @@ export type Stats = {
   movementSpeed: number;
   armor: number;
   attackPower: number;
-  magicPower: number;
   attackSpeed: number;
+  attackRange: number;
+  healPower: number;
+  threat: number;
+  cleave: number;
 };
 
 export type UnitSnapshot = {
   id: string;
   side: Side;
   role: Role;
-  rangeType: RangeType;
-  unitClass: string | null;
-  subclass: string | null;
+  ranged: boolean;
   autoAttack: boolean;
   health: number;
   maxHealth: number;

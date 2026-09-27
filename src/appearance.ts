@@ -1,5 +1,5 @@
+import type { GearKindId } from "./sim/gearKinds";
 import type { GroupMember } from "./sim/group";
-import { memberRangeType, memberRole } from "./sim/classes";
 
 export type SpriteFrame = { col: number; row: number };
 
@@ -14,7 +14,6 @@ type AppearanceVariant = {
   body: SpriteFrame;
   clothing: SpriteFrame;
   pants: SpriteFrame;
-  equipmentRow: number;
 };
 
 const APPEARANCE_VARIANTS: AppearanceVariant[] = [
@@ -22,19 +21,16 @@ const APPEARANCE_VARIANTS: AppearanceVariant[] = [
     body: { col: 0, row: 0 },
     clothing: { col: 6, row: 0 },
     pants: { col: 3, row: 5 },
-    equipmentRow: 0,
   },
   {
     body: { col: 0, row: 1 },
     clothing: { col: 10, row: 0 },
     pants: { col: 3, row: 6 },
-    equipmentRow: 1,
   },
   {
     body: { col: 0, row: 2 },
     clothing: { col: 14, row: 0 },
     pants: { col: 3, row: 7 },
-    equipmentRow: 2,
   },
 ];
 
@@ -45,20 +41,24 @@ export const ENEMY_APPEARANCE: CharacterAppearance = {
   equipment: [],
 };
 
-function equipmentFrames(member: GroupMember, row: number): SpriteFrame[] {
-  if (memberRole(member) === "tank") {
-    return [
-      { col: 44, row: 6 },
-      { col: 37, row: 0 },
-    ];
-  }
-  if (memberRole(member) === "healer") {
-    return [{ col: 46, row }];
-  }
-  if (memberRangeType(member) === "ranged") {
-    return [{ col: row === 1 ? 46 : 52, row }];
-  }
-  return [row === 0 ? { col: 44, row: 6 } : { col: row === 1 ? 50 : 47, row: 0 }];
+/** Held-item sprites by gear kind. Worn kinds (chest, pants, jewelry, tome) draw nothing yet. */
+const HELD_FRAMES: Partial<Record<GearKindId, SpriteFrame>> = {
+  sword: { col: 44, row: 6 },
+  axe: { col: 49, row: 1 },
+  mace: { col: 47, row: 0 },
+  dagger: { col: 44, row: 7 },
+  bow: { col: 52, row: 0 },
+  staff: { col: 42, row: 1 },
+  wand: { col: 46, row: 2 },
+  shield: { col: 37, row: 0 },
+};
+
+function equipmentFrames(member: GroupMember): SpriteFrame[] {
+  const held = [member.equipment.mainHand, member.equipment.offHand];
+  return held.flatMap((item) => {
+    const frame = item ? HELD_FRAMES[item.kind] : undefined;
+    return frame ? [frame] : [];
+  });
 }
 
 export function getMemberAppearance(member: GroupMember, index: number): CharacterAppearance {
@@ -67,7 +67,7 @@ export function getMemberAppearance(member: GroupMember, index: number): Charact
     body: variant.body,
     clothing: variant.clothing,
     pants: variant.pants,
-    equipment: equipmentFrames(member, variant.equipmentRow),
+    equipment: equipmentFrames(member),
   };
 }
 

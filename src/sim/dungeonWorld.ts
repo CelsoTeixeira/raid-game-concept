@@ -1,6 +1,5 @@
 import { ENEMY_APPEARANCE } from "../appearance";
-import { ENEMY_GROUP_SEPARATION, makeEnemyStats, TILE } from "./balance";
-import { ENEMY_ATTRIBUTES } from "./classes";
+import { ENEMY_GROUP_SEPARATION, TILE } from "./balance";
 import { living } from "./combat";
 import {
   countRoomsBySize,
@@ -15,6 +14,7 @@ import {
 } from "./dungeon";
 import { gridCenter, tileKey, worldToGrid, type GridPoint } from "./grid";
 import { nearestOpen } from "./path";
+import { enemyStats } from "./stats";
 import type { SimUnit } from "./unit";
 
 export type EnemyGroup = {
@@ -316,12 +316,8 @@ export class DungeonWorld {
       id,
       side: "enemy",
       role: "dps",
-      rangeType: "melee",
-      unitClass: null,
-      subclass: null,
-      attributes: { ...ENEMY_ATTRIBUTES },
       appearance: ENEMY_APPEARANCE,
-      stats: makeEnemyStats(),
+      stats: enemyStats(),
       autoAttack: true,
       selected: false,
       cooldown: 0,

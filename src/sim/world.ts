@@ -1,8 +1,9 @@
 import { ENEMY_APPEARANCE, getMemberAppearance } from "../appearance";
-import { attackRange, makeEnemyStats, MAX_FRIENDLIES, TILE } from "./balance";
+import { HEAL_RANGE, MAX_FRIENDLIES, TILE } from "./balance";
 import {
   act,
   canAttack,
+  canHeal,
   dist,
   enemyTarget,
   isHealFx,
@@ -26,9 +27,9 @@ import { gridCenter, worldToGrid, type GridPoint } from "./grid";
 import { createBlocked } from "./map";
 import { pathToPoint, type WorldPoint } from "./nav";
 import { nearestOpen } from "./path";
-import { ENEMY_ATTRIBUTES } from "./classes";
 import { copyCombatStats, type Character } from "./character";
 import { DEFAULT_GROUP } from "./group";
+import { enemyStats, isRanged } from "./stats";
 import { roomContaining } from "./dungeon";
 import type { DungeonEncounter } from "./dungeonWorld";
 import type { HudState, Side, UnitSnapshot } from "./types";
@@ -124,8 +125,8 @@ export class World {
   }
 
   /**
-   * Right-click a unit with a selection: healers heal that friendly, everyone attacks that enemy.
-   * Returns false so the view can fall back to a ground move (empty ground, tanks on allies).
+   * Right-click a unit with a selection: units with healing gear heal that friendly, everyone
+   * attacks that enemy. Returns false so the view can fall back to a ground move.
    */
   tryCommand(x: number, y: number): boolean {
     const hover = this.commandAt(x, y);
@@ -136,7 +137,7 @@ export class World {
       return true;
     }
     for (const u of selected) {
-      if (u.role === "healer") u.order = { kind: "heal", targetId: hover.id };
+      if (canHeal(u)) u.order = { kind: "heal", targetId: hover.id };
     }
     return true;
   }
@@ -148,7 +149,7 @@ export class World {
     const hit = this.unitAt(x, y, "enemy") ?? this.unitAt(x, y, "friendly");
     if (!hit) return null;
     if (hit.side === "enemy") return { kind: "attack", id: hit.id, x: hit.x, y: hit.y };
-    if (selected.some((u) => u.role === "healer")) return { kind: "heal", id: hit.id, x: hit.x, y: hit.y };
+    if (selected.some(canHeal)) return { kind: "heal", id: hit.id, x: hit.x, y: hit.y };
     return null;
   }
 
@@ -212,7 +213,7 @@ export class World {
     const threatLines = livingE.map((e) => {
       const t = enemyTarget(this.units, e);
       const v = t ? (e.threat.get(t.id) ?? 0) : 0;
-      return `${e.id} → ${t ? t.role : "idle"} (${v})`;
+      return `${e.id} → ${t ? t.role : "idle"} (${Math.round(v)})`;
     });
     return {
       selected: living(this.units, "friendly")
@@ -271,10 +272,6 @@ export class World {
       id: `friendly-${this.nextId++}`,
       side: "friendly",
       role: member.role,
-      rangeType: member.rangeType,
-      unitClass: member.unitClass,
-      subclass: member.subclass,
-      attributes: { ...member.attributes },
       appearance: getMemberAppearance(member, index),
       stats: copyCombatStats(member.stats),
       autoAttack: true,
@@ -295,12 +292,8 @@ export class World {
       id: `enemy-${this.nextId++}`,
       side: "enemy",
       role: "dps",
-      rangeType: "melee",
-      unitClass: null,
-      subclass: null,
-      attributes: { ...ENEMY_ATTRIBUTES },
       appearance: ENEMY_APPEARANCE,
-      stats: makeEnemyStats(),
+      stats: enemyStats(),
       autoAttack: true,
       selected: false,
       cooldown: 0,
@@ -464,7 +457,7 @@ export class World {
       }
       const inRange =
         u.order.kind === "heal"
-          ? dist(u, target) <= attackRange(u.rangeType)
+          ? dist(u, target) <= HEAL_RANGE
           : canAttack(u, target);
       if (inRange) {
         u.path = [];
@@ -494,9 +487,7 @@ export class World {
       id: u.id,
       side: u.side,
       role: u.role,
-      rangeType: u.rangeType,
-      unitClass: u.unitClass,
-      subclass: u.subclass,
+      ranged: isRanged(u.stats),
       autoAttack: u.autoAttack,
       health: Math.max(0, Math.round(u.stats.health)),
       maxHealth: u.stats.maxHealth,
@@ -504,7 +495,7 @@ export class World {
       maxMana: u.stats.maxMana,
       selected: u.selected,
       threatTargetId,
-      threatValue,
+      threatValue: Math.round(threatValue),
     };
   }
 }

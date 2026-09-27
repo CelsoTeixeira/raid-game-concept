@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { EquipmentSlot } from "./sim/character";
+import { equippedItemIds, type EquipmentSlot } from "./sim/character";
 import { equipFromBag, unequipToBag, type EquipResult } from "./sim/equip";
 import { loadPersistedGroup, persistGroup, replaceGroupMember } from "./sim/group";
 import { loadPersistedBag, moveInventoryItem, persistBag, type InventoryPlacement } from "./sim/inventory";
@@ -13,8 +13,14 @@ import { StartScreen } from "./screens/StartScreen";
 
 export function App() {
   const [screen, setScreen] = useState<"start" | "group" | "field" | "dungeon" | "items">("start");
-  const [group, setGroup] = useState(loadPersistedGroup);
-  const [bag, setBag] = useState(() => loadPersistedBag() ?? generateStarterBag(1));
+  const [initial] = useState(() => {
+    const group = loadPersistedGroup();
+    const equipped = equippedItemIds(group);
+    const bag = loadPersistedBag(equipped) ?? generateStarterBag(1).filter((item) => !equipped.has(item.id));
+    return { group, bag };
+  });
+  const [group, setGroup] = useState(initial.group);
+  const [bag, setBag] = useState(initial.bag);
   const [encounter, setEncounter] = useState<DungeonEncounter | undefined>();
   const [dungeonBackScreen, setDungeonBackScreen] = useState<"start" | "group">("start");
 

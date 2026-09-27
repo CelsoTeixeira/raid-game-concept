@@ -1,26 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { ENEMY_ENGAGE_RANGE, ENEMY_SOCIAL_RANGE, incomingDamage } from "./balance";
+import { ENEMY_ENGAGE_RANGE, ENEMY_SOCIAL_RANGE } from "./balance";
 import { act, canAttack, isHealFx, strike } from "./combat";
 import { TILE } from "./balance";
 import { gridCenter } from "./grid";
+import { incomingDamage, isRanged } from "./stats";
 import { World } from "./world";
 
 describe("combat numbers", () => {
-  it("armor floors at 1 damage", () => {
-    expect(incomingDamage(8, 10)).toBe(1);
-    expect(incomingDamage(18, 1)).toBe(17);
+  it("armor mitigates a fraction and a hit always chips", () => {
+    expect(incomingDamage(1, 1000)).toBe(1);
+    expect(incomingDamage(40, 40)).toBe(20);
+    expect(incomingDamage(18, 0)).toBe(18);
   });
 
-  it("tank strike adds 3 threat, dps adds 1", () => {
+  it("threat is damage times the gear threat multiplier", () => {
     const world = new World();
     const tank = world.units.find((u) => u.role === "tank")!;
     const dps = world.units.find((u) => u.role === "dps")!;
     world.spawnEnemy();
     const enemy = world.units.find((u) => u.side === "enemy")!;
-    strike(tank, enemy);
-    strike(dps, enemy);
-    expect(enemy.threat.get(tank.id)).toBe(3);
-    expect(enemy.threat.get(dps.id)).toBe(1);
+    const tankHit = strike(tank, enemy);
+    const dpsHit = strike(dps, enemy);
+    expect(tank.stats.threat).toBeGreaterThan(1);
+    expect(enemy.threat.get(tank.id)).toBeCloseTo(tankHit * tank.stats.threat, 5);
+    expect(enemy.threat.get(dps.id)).toBeCloseTo(dpsHit * dps.stats.threat, 5);
   });
 
   it("healer spends the clock on heal even with auto-attack off", () => {
@@ -60,9 +63,9 @@ describe("combat numbers", () => {
     expect(hit[0] && !isHealFx(hit[0]) && hit[0].kind).toBe("melee");
   });
 
-  it("tank cleave tags extra nearby enemies with threat", () => {
+  it("a cleaving weapon tags extra nearby enemies with threat", () => {
     const world = new World();
-    const tank = world.units.find((u) => u.role === "tank")!;
+    const tank = world.units.find((u) => u.side === "friendly" && u.stats.cleave > 0)!;
     world.spawnEnemy();
     world.spawnEnemy();
     const enemies = world.units.filter((u) => u.side === "enemy");
@@ -76,22 +79,20 @@ describe("combat numbers", () => {
     tank.cooldown = 0;
     const fx = act(world.units, tank);
     expect(fx.length).toBeGreaterThanOrEqual(2);
-    expect(enemies[0].threat.get(tank.id)).toBe(3);
-    expect(enemies[1].threat.get(tank.id)).toBe(3);
+    expect(enemies[0].threat.get(tank.id)).toBeGreaterThan(0);
+    expect(enemies[1].threat.get(tank.id)).toBeGreaterThan(0);
   });
 
   it("healers regen mana each second and stop at max", () => {
     const world = new World();
     const healer = world.units.find((u) => u.role === "healer")!;
-    const tank = world.units.find((u) => u.role === "tank")!;
     healer.stats.mana = 0;
     healer.autoAttack = false;
     world.tick(1000);
-    expect(healer.stats.mana).toBeCloseTo(5, 5);
-    expect(tank.stats.mana).toBe(0);
-    healer.stats.mana = 119;
+    expect(healer.stats.mana).toBeCloseTo(healer.stats.manaRegen, 5);
+    healer.stats.mana = healer.stats.maxMana - 1;
     world.tick(1000);
-    expect(healer.stats.mana).toBe(120);
+    expect(healer.stats.mana).toBe(healer.stats.maxMana);
   });
 
   it("healer click order heals that ally instead of the lowest hp", () => {
@@ -102,7 +103,8 @@ describe("combat numbers", () => {
     healer.selected = true;
     healer.x = tank.x;
     healer.y = tank.y;
-    tank.stats.health = 80;
+    const tankHurt = Math.floor(tank.stats.maxHealth / 2);
+    tank.stats.health = tankHurt;
     dps.stats.health = 10;
     dps.x = healer.x;
     dps.y = healer.y;
@@ -110,7 +112,7 @@ describe("combat numbers", () => {
     healer.cooldown = 0;
     const fx = act(world.units, healer);
     expect(fx[0] && isHealFx(fx[0]) && fx[0].targetId).toBe(tank.id);
-    expect(tank.stats.health).toBeGreaterThan(80);
+    expect(tank.stats.health).toBeGreaterThan(tankHurt);
     expect(dps.stats.health).toBe(10);
   });
 
@@ -184,7 +186,7 @@ describe("occupancy", () => {
   it("solo ranged lands on the click", () => {
     const world = new World();
     world.setFormation("raid");
-    const ranged = world.units.find((u) => u.role === "dps" && u.rangeType === "ranged")!;
+    const ranged = world.units.find((u) => u.role === "dps" && isRanged(u.stats))!;
     ranged.selected = true;
     const click = { x: 400, y: 300 };
     const [assign] = world.moveAssignments(click.x, click.y);
@@ -218,7 +220,7 @@ describe("occupancy", () => {
     const fy = click.y - cy;
     const assigns = world.moveAssignments(click.x, click.y);
     const tank = assigns.find((a) => a.unit.role === "tank")!;
-    const ranged = assigns.find((a) => a.unit.rangeType === "ranged")!;
+    const ranged = assigns.find((a) => isRanged(a.unit.stats))!;
     const along = (x: number, y: number) => (x - click.x) * fx + (y - click.y) * fy;
     expect(along(tank.goal.x, tank.goal.y)).toBeGreaterThan(along(ranged.goal.x, ranged.goal.y));
   });

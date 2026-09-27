@@ -25,6 +25,7 @@ function unplaced(item: InventoryItem): UnplacedItem {
     height: item.height,
     bonuses: item.bonuses,
     rarity: item.rarity,
+    kind: item.kind,
     slot: item.slot,
   };
 }

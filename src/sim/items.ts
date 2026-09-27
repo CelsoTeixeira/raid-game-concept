@@ -1,5 +1,10 @@
-import type { EquipmentSlot } from "./character";
-import { PRIMARY_STATS, STAT_LABELS } from "./classes";
+import {
+  GEAR_KINDS,
+  GEAR_SLOTS,
+  gearKindsForSlot,
+  type GearKindId,
+  type GearSlot,
+} from "./gearKinds";
 import {
   addInventoryItem,
   ITEM_RARITIES,
@@ -8,31 +13,12 @@ import {
   type ItemRarity,
   type UnplacedItem,
 } from "./inventory";
+import { isRanged, PRIMARY_STATS, STAT_LABELS } from "./stats";
 import type { PrimaryStat } from "./types";
 
 export type Rng = {
   next(): number;
 };
-
-type GearKind = {
-  slot: EquipmentSlot;
-  nouns: readonly string[];
-  width: number;
-  height: number;
-  theme: PrimaryStat;
-};
-
-const GEAR_KINDS: readonly GearKind[] = [
-  { slot: "mainHand", nouns: ["Sword", "Axe", "Mace"], width: 1, height: 3, theme: "strength" },
-  { slot: "mainHand", nouns: ["Dagger"], width: 1, height: 2, theme: "agility" },
-  { slot: "mainHand", nouns: ["Staff"], width: 1, height: 3, theme: "intelligence" },
-  { slot: "offHand", nouns: ["Shield", "Buckler"], width: 2, height: 2, theme: "vitality" },
-  { slot: "offHand", nouns: ["Tome"], width: 1, height: 2, theme: "intelligence" },
-  { slot: "pants", nouns: ["Pants", "Greaves", "Leggings"], width: 2, height: 2, theme: "vitality" },
-  { slot: "chest", nouns: ["Chest", "Vest", "Robe", "Mail"], width: 2, height: 2, theme: "vitality" },
-  { slot: "amulet", nouns: ["Amulet", "Necklace", "Pendant"], width: 1, height: 1, theme: "intelligence" },
-  { slot: "ring1", nouns: ["Ring", "Band", "Signet"], width: 1, height: 1, theme: "agility" },
-];
 
 export const RARITY_ADJECTIVES: Record<ItemRarity, readonly string[]> = {
   gray: ["Worn", "Rusty", "Cracked", "Bent", "Faded"],
@@ -59,6 +45,15 @@ export const RARITY_STAT_COUNT: Record<ItemRarity, number> = {
   orange: 4,
 };
 
+/** Multiplier on a kind's armor, threat, and healing base. */
+export const RARITY_TRAIT_SCALE: Record<ItemRarity, number> = {
+  gray: 1,
+  green: 1.5,
+  blue: 2.2,
+  purple: 3,
+  orange: 4,
+};
+
 export const RARITY_WEIGHTS: Record<ItemRarity, number> = {
   gray: 0.4,
   green: 0.3,
@@ -67,8 +62,6 @@ export const RARITY_WEIGHTS: Record<ItemRarity, number> = {
   orange: 0.03,
 };
 
-export const GEAR_SLOTS = ["mainHand", "offHand", "pants", "chest", "amulet", "ring1"] as const;
-
 const STAT_ABBREV: Record<PrimaryStat, string> = {
   vitality: "Vit",
   intelligence: "Int",
@@ -76,10 +69,10 @@ const STAT_ABBREV: Record<PrimaryStat, string> = {
   agility: "Agi",
 };
 
-const STARTER_PLANS: readonly { rarity: ItemRarity; slot: EquipmentSlot }[] = [
+const STARTER_PLANS: readonly { rarity: ItemRarity; slot: GearSlot }[] = [
   { rarity: "gray", slot: "mainHand" },
   { rarity: "green", slot: "chest" },
-  { rarity: "blue", slot: "ring1" },
+  { rarity: "blue", slot: "ring" },
   { rarity: "purple", slot: "offHand" },
   { rarity: "orange", slot: "amulet" },
 ];
@@ -96,6 +89,13 @@ export function mulberry32(seed: number): Rng {
   };
 }
 
+/** Unique across sessions; rolled items must never share an id. */
+export function newItemId(): string {
+  const uuid =
+    globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `gear-${uuid}`;
+}
+
 function pickOne<T>(rng: Rng, items: readonly T[]): T {
   return items[Math.floor(rng.next() * items.length)]!;
 }
@@ -108,11 +108,6 @@ function pickRarity(rng: Rng): ItemRarity {
     if (roll < acc) return rarity;
   }
   return "orange";
-}
-
-function kindsForSlot(slot: EquipmentSlot): readonly GearKind[] {
-  const kinds = GEAR_KINDS.filter((kind) => kind.slot === slot);
-  return kinds.length > 0 ? kinds : GEAR_KINDS;
 }
 
 function distributeBonuses(
@@ -149,42 +144,87 @@ function distributeBonuses(
   return bonuses;
 }
 
+function traitBonuses(kind: GearKindId, rarity: ItemRarity): ItemBonuses {
+  const def = GEAR_KINDS[kind];
+  const scale = RARITY_TRAIT_SCALE[rarity];
+  const bonuses: ItemBonuses = {};
+  if (def.armor) bonuses.armor = Math.round(def.armor * scale);
+  if (def.threat) bonuses.threat = Math.round(def.threat * scale);
+  if (def.healing) bonuses.healing = Math.round(def.healing * scale);
+  return bonuses;
+}
+
 export function primaryBonusTotal(bonuses: ItemBonuses): number {
   return PRIMARY_STATS.reduce((sum, stat) => sum + (bonuses[stat] ?? 0), 0);
 }
 
+function traitParts(bonuses: ItemBonuses, short: boolean): string[] {
+  const parts: string[] = [];
+  if (bonuses.armor) parts.push(`+${bonuses.armor} ${short ? "Arm" : "Armor"}`);
+  if (bonuses.threat) parts.push(`+${bonuses.threat}% ${short ? "Thr" : "Threat"}`);
+  if (bonuses.healing) parts.push(`+${bonuses.healing} ${short ? "Heal" : "Healing"}`);
+  return parts;
+}
+
 export function formatItemBonuses(bonuses: ItemBonuses): string {
-  return PRIMARY_STATS.filter((stat) => (bonuses[stat] ?? 0) > 0)
-    .map((stat) => `+${bonuses[stat]} ${STAT_LABELS[stat]}`)
-    .join(" · ");
+  return [
+    ...PRIMARY_STATS.filter((stat) => (bonuses[stat] ?? 0) > 0).map(
+      (stat) => `+${bonuses[stat]} ${STAT_LABELS[stat]}`,
+    ),
+    ...traitParts(bonuses, false),
+  ].join(" · ");
 }
 
 export function formatItemBonusesShort(bonuses: ItemBonuses): string {
-  return PRIMARY_STATS.filter((stat) => (bonuses[stat] ?? 0) > 0)
-    .map((stat) => `+${bonuses[stat]} ${STAT_ABBREV[stat]}`)
-    .join(" ");
+  return [
+    ...PRIMARY_STATS.filter((stat) => (bonuses[stat] ?? 0) > 0).map(
+      (stat) => `+${bonuses[stat]} ${STAT_ABBREV[stat]}`,
+    ),
+    ...traitParts(bonuses, true),
+  ].join(" ");
+}
+
+/** Weapon line for a kind, e.g. "Str · 5 dmg · 0.85/s · melee · cleave 50%". Empty for non-weapons. */
+export function formatWeapon(kind: GearKindId): string {
+  const weapon = GEAR_KINDS[kind].weapon;
+  if (!weapon) return "";
+  const parts = [
+    STAT_ABBREV[weapon.scaling],
+    `${weapon.damage} dmg`,
+    `${weapon.speed}/s`,
+    isRanged({ attackRange: weapon.range }) ? `range ${weapon.range}` : "melee",
+  ];
+  if (weapon.cleave > 0) parts.push(`cleave ${Math.round(weapon.cleave * 100)}%`);
+  return parts.join(" · ");
 }
 
 export function generateGear(options: {
   rng: Rng;
   id?: string;
   rarity?: ItemRarity;
-  slot?: EquipmentSlot;
+  slot?: GearSlot;
+  kind?: GearKindId;
 }): UnplacedItem {
-  const rarity = options.rarity ?? pickRarity(options.rng);
-  const kind = pickOne(options.rng, options.slot ? kindsForSlot(options.slot) : GEAR_KINDS);
-  const noun = pickOne(options.rng, kind.nouns);
-  const adjective = pickOne(options.rng, RARITY_ADJECTIVES[rarity]);
-  const theme = kind.slot === "ring1" ? pickOne(options.rng, PRIMARY_STATS) : kind.theme;
+  const { rng } = options;
+  const rarity = options.rarity ?? pickRarity(rng);
+  const kind = options.kind ?? pickOne(rng, gearKindsForSlot(options.slot ?? pickOne(rng, GEAR_SLOTS)));
+  const def = GEAR_KINDS[kind];
+  const noun = pickOne(rng, def.nouns);
+  const adjective = pickOne(rng, RARITY_ADJECTIVES[rarity]);
+  const theme = def.theme ?? pickOne(rng, PRIMARY_STATS);
 
   return {
-    id: options.id ?? `gear-${Math.floor(options.rng.next() * 1e9).toString(36)}`,
+    id: options.id ?? `gear-${Math.floor(rng.next() * 1e9).toString(36)}`,
     name: `${adjective} ${noun}`,
-    width: kind.width,
-    height: kind.height,
-    bonuses: distributeBonuses(RARITY_BUDGET[rarity], theme, RARITY_STAT_COUNT[rarity], options.rng),
+    width: def.width,
+    height: def.height,
+    bonuses: {
+      ...distributeBonuses(RARITY_BUDGET[rarity], theme, RARITY_STAT_COUNT[rarity], rng),
+      ...traitBonuses(kind, rarity),
+    },
     rarity,
-    slot: kind.slot,
+    kind,
+    slot: def.slot,
   };
 }
 
@@ -213,7 +253,7 @@ export function generateStarterBag(seed = 1): InventoryItem[] {
 export function rollItemIntoBag(items: InventoryItem[], seed = Date.now()): InventoryItem[] {
   const rng = mulberry32(seed >>> 0);
   for (let attempt = 0; attempt < 8; attempt += 1) {
-    const packed = addInventoryItem(items, generateGear({ rng }));
+    const packed = addInventoryItem(items, generateGear({ rng, id: newItemId() }));
     if (packed) return packed;
   }
   return items;
