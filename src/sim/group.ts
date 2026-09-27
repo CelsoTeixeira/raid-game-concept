@@ -2,15 +2,15 @@ import {
   createCharacter,
   emptyEquipment,
   refreshCombat,
+  slotsForItem,
   type Character,
   type CharacterDraft,
-  type EquippedItem,
   type Equipment,
   type EquipmentSlot,
   EQUIPMENT_SLOTS,
 } from "./character";
 import { CLASS_SPECS, isUnitClass, type ClassKit, type UnitClass } from "./classes";
-import { isItemRarity } from "./inventory";
+import { parseGearItem } from "./inventory";
 import type { RangeType, Role } from "./types";
 
 export type { Character } from "./character";
@@ -34,27 +34,13 @@ function isClassKit(value: unknown): value is ClassKit {
   return member.subclass in CLASS_SPECS[member.unitClass];
 }
 
-function isEquippedItem(value: unknown): value is EquippedItem {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const item = value as { id?: unknown; name?: unknown; bonuses?: unknown };
-  return typeof item.id === "string" && typeof item.name === "string" && typeof item.bonuses === "object" && item.bonuses !== null;
-}
-
 function parseEquipment(value: unknown): Equipment {
   const equipment = emptyEquipment();
   if (typeof value !== "object" || value === null || Array.isArray(value)) return equipment;
   const raw = value as Partial<Record<EquipmentSlot, unknown>>;
   for (const slot of EQUIPMENT_SLOTS) {
-    const item = raw[slot];
-    if (item === null) equipment[slot] = null;
-    else if (isEquippedItem(item)) {
-      equipment[slot] = {
-        id: item.id,
-        name: item.name,
-        bonuses: { ...item.bonuses },
-        ...(isItemRarity(item.rarity) ? { rarity: item.rarity } : {}),
-      };
-    }
+    const item = parseGearItem(raw[slot]);
+    if (item && slotsForItem(item.slot).includes(slot)) equipment[slot] = item;
   }
   return equipment;
 }

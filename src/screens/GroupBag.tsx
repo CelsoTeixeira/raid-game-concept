@@ -1,20 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import type { RefObject } from "react";
+import { EQUIPMENT_SLOT_LABELS, slotsForItem } from "../sim/character";
 import {
   BAG_COLUMNS,
   BAG_ROWS,
   isInventoryPlacementValid,
+  itemFitsAt,
   type InventoryItem,
   type InventoryPlacement,
 } from "../sim/inventory";
 import { formatItemBonuses, formatItemBonusesShort } from "../sim/items";
-
-type DragState = {
-  itemId: string;
-  pointerId: number;
-  grabOffsetX: number;
-  grabOffsetY: number;
-  preview: InventoryPlacement;
-};
+import type { ItemDrag, ItemDragHandlers, StartItemDrag } from "./itemDrag";
 
 const KEY_OFFSETS: Record<string, InventoryPlacement> = {
   ArrowUp: { x: 0, y: -1 },
@@ -23,7 +18,7 @@ const KEY_OFFSETS: Record<string, InventoryPlacement> = {
   ArrowRight: { x: 1, y: 0 },
 };
 
-function itemStyle(item: InventoryItem): React.CSSProperties {
+function itemStyle(item: Pick<InventoryItem, "x" | "y" | "width" | "height">): React.CSSProperties {
   return {
     left: `${(item.x / BAG_COLUMNS) * 100}%`,
     top: `${(item.y / BAG_ROWS) * 100}%`,
@@ -32,106 +27,59 @@ function itemStyle(item: InventoryItem): React.CSSProperties {
   };
 }
 
+function isDropValid(items: InventoryItem[], drag: ItemDrag, placement: InventoryPlacement): boolean {
+  return drag.source.from === "bag"
+    ? isInventoryPlacementValid(items, drag.source.item.id, placement)
+    : itemFitsAt(items, drag.source.item, placement);
+}
+
+function dragStatus(items: InventoryItem[], drag: ItemDrag): string {
+  const { item } = drag.source;
+  const { target } = drag;
+  if (target?.to === "bag") {
+    const valid = isDropValid(items, drag, target.placement);
+    return `${item.name}: ${valid ? "valid placement" : "blocked placement"}. Release to place or press Escape to cancel.`;
+  }
+  if (target?.to === "slot" && drag.source.from === "bag") {
+    const label = EQUIPMENT_SLOT_LABELS[target.slot];
+    return slotsForItem(item.slot).includes(target.slot)
+      ? `${item.name}: release to equip in ${label}.`
+      : `${item.name} does not fit the ${label} slot.`;
+  }
+  return drag.source.from === "slot"
+    ? `${item.name}: drop in the bag to unequip, or press Escape to cancel.`
+    : `${item.name}: drop in the bag or on a matching slot, or press Escape to cancel.`;
+}
+
 export function GroupBag({
   items,
+  drag,
+  boardRef,
+  startDrag,
+  dragHandlers,
+  canEquip,
+  notice,
   onMoveItem,
+  onEquipItem,
   onRollItem,
 }: {
   items: InventoryItem[];
+  drag: ItemDrag | null;
+  boardRef: RefObject<HTMLDivElement | null>;
+  startDrag: StartItemDrag;
+  dragHandlers: ItemDragHandlers;
+  canEquip: boolean;
+  notice: string | null;
   onMoveItem: (itemId: string, placement: InventoryPlacement) => void;
+  onEquipItem: (itemId: string) => void;
   onRollItem: () => void;
 }) {
-  const [drag, setDrag] = useState<DragState | null>(null);
-  const dragRef = useRef<DragState | null>(null);
-  const dragSourceRef = useRef<HTMLButtonElement | null>(null);
-  const boardRef = useRef<HTMLDivElement | null>(null);
-
-  const clearDrag = () => {
-    const activeDrag = dragRef.current;
-    dragRef.current = null;
-    setDrag(null);
-    const source = dragSourceRef.current;
-    dragSourceRef.current = null;
-    if (activeDrag && source?.hasPointerCapture(activeDrag.pointerId)) {
-      source.releasePointerCapture(activeDrag.pointerId);
-    }
-  };
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || !dragRef.current) return;
-      event.preventDefault();
-      clearDrag();
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      clearDrag();
-    };
-  }, []);
-
-  const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>, item: InventoryItem) => {
-    if (event.button !== 0 || dragRef.current) return;
-
-    const itemRect = event.currentTarget.getBoundingClientRect();
-    const itemCellWidth = itemRect.width / item.width;
-    const itemCellHeight = itemRect.height / item.height;
-    const grabOffsetX = Math.min(
-      item.width - 1,
-      Math.max(0, Math.floor((event.clientX - itemRect.left) / itemCellWidth)),
-    );
-    const grabOffsetY = Math.min(
-      item.height - 1,
-      Math.max(0, Math.floor((event.clientY - itemRect.top) / itemCellHeight)),
-    );
-    const nextDrag: DragState = {
-      itemId: item.id,
-      pointerId: event.pointerId,
-      grabOffsetX,
-      grabOffsetY,
-      preview: { x: item.x, y: item.y },
-    };
-
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    dragSourceRef.current = event.currentTarget;
-    dragRef.current = nextDrag;
-    setDrag(nextDrag);
-  };
-
-  const handlePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
-    const activeDrag = dragRef.current;
-    const board = boardRef.current;
-    if (!activeDrag || activeDrag.pointerId !== event.pointerId || !board) return;
-
-    const boardRect = board.getBoundingClientRect();
-    const cellWidth = boardRect.width / BAG_COLUMNS;
-    const cellHeight = boardRect.height / BAG_ROWS;
-    const pointerColumn = Math.floor((event.clientX - boardRect.left) / cellWidth);
-    const pointerRow = Math.floor((event.clientY - boardRect.top) / cellHeight);
-    const preview = {
-      x: pointerColumn - activeDrag.grabOffsetX,
-      y: pointerRow - activeDrag.grabOffsetY,
-    };
-
-    if (preview.x === activeDrag.preview.x && preview.y === activeDrag.preview.y) return;
-    const nextDrag = { ...activeDrag, preview };
-    dragRef.current = nextDrag;
-    setDrag(nextDrag);
-  };
-
-  const handlePointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
-    const activeDrag = dragRef.current;
-    if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
-
-    const isValid = isInventoryPlacementValid(items, activeDrag.itemId, activeDrag.preview);
-    const placement = activeDrag.preview;
-    clearDrag();
-    if (isValid) onMoveItem(activeDrag.itemId, placement);
-  };
-
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, item: InventoryItem) => {
+    if (event.key === "Enter" && canEquip) {
+      event.preventDefault();
+      onEquipItem(item.id);
+      return;
+    }
     const offset = KEY_OFFSETS[event.key];
     if (!offset) return;
 
@@ -139,10 +87,11 @@ export function GroupBag({
     onMoveItem(item.id, { x: item.x + offset.x, y: item.y + offset.y });
   };
 
-  const draggedItem = drag ? items.find((item) => item.id === drag.itemId) : undefined;
-  const previewIsValid = Boolean(
-    draggedItem && drag && isInventoryPlacementValid(items, draggedItem.id, drag.preview),
-  );
+  const bagPreview = drag?.target?.to === "bag" ? drag.target.placement : null;
+  const previewIsValid = Boolean(drag && bagPreview && isDropValid(items, drag, bagPreview));
+  const idleStatus = canEquip
+    ? "Drag to rearrange or onto a matching slot. Double-click or press Enter to equip."
+    : "Drag items to rearrange them, or focus one and use the arrow keys. Open a character to equip gear.";
 
   return (
     <section className="group-bag" aria-labelledby="group-bag-title">
@@ -163,16 +112,16 @@ export function GroupBag({
         ref={boardRef}
         aria-label="Group bag, five columns by five rows"
       >
-        {draggedItem && drag ? (
+        {drag && bagPreview ? (
           <div
             className={`group-bag-preview ${previewIsValid ? "is-valid" : "is-invalid"}`}
             style={{
-              ...itemStyle({ ...draggedItem, ...drag.preview }),
-              gridTemplateColumns: `repeat(${draggedItem.width}, minmax(0, 1fr))`,
+              ...itemStyle({ ...drag.source.item, ...bagPreview }),
+              gridTemplateColumns: `repeat(${drag.source.item.width}, minmax(0, 1fr))`,
             }}
             aria-hidden="true"
           >
-            {Array.from({ length: draggedItem.width * draggedItem.height }, (_, index) => (
+            {Array.from({ length: drag.source.item.width * drag.source.item.height }, (_, index) => (
               <span key={index} />
             ))}
           </div>
@@ -180,20 +129,21 @@ export function GroupBag({
         {items.map((item) => {
           const bonusText = formatItemBonuses(item.bonuses);
           const shortBonuses = formatItemBonusesShort(item.bonuses);
+          const isDragging = drag?.source.from === "bag" && drag.source.item.id === item.id;
           return (
             <button
-              className={`group-bag-item ${drag?.itemId === item.id ? "is-dragging" : ""}`}
+              className={`group-bag-item ${isDragging ? "is-dragging" : ""}`}
               data-rarity={item.rarity}
               key={item.id}
               type="button"
               style={itemStyle(item)}
-              aria-label={`${item.name}, ${item.rarity}, ${bonusText || "no bonuses"}, ${item.width} by ${item.height} slots, column ${item.x + 1}, row ${item.y + 1}. Use arrow keys to move.`}
+              aria-label={`${item.name}, ${item.rarity}, ${bonusText || "no bonuses"}, ${item.width} by ${item.height} slots, column ${item.x + 1}, row ${item.y + 1}. Use arrow keys to move${canEquip ? ", Enter to equip" : ""}.`}
               onKeyDown={(event) => handleKeyDown(event, item)}
-              onPointerDown={(event) => handlePointerDown(event, item)}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={clearDrag}
-              onLostPointerCapture={clearDrag}
+              onPointerDown={(event) => startDrag(event, { from: "bag", item })}
+              onDoubleClick={() => {
+                if (canEquip) onEquipItem(item.id);
+              }}
+              {...dragHandlers}
             >
               <span className="group-bag-item-name">{item.name}</span>
               {shortBonuses ? <span className="group-bag-item-stats">{shortBonuses}</span> : null}
@@ -202,9 +152,7 @@ export function GroupBag({
         })}
       </div>
       <p className="group-bag-status" aria-live="polite">
-        {draggedItem && drag
-          ? `${draggedItem.name}: ${previewIsValid ? "valid placement" : "blocked placement"}. Release to place or press Escape to cancel.`
-          : "Drag items to rearrange them, or focus one and use the arrow keys."}
+        {drag ? dragStatus(items, drag) : (notice ?? idleStatus)}
       </p>
     </section>
   );

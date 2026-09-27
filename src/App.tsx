@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import type { EquipmentSlot } from "./sim/character";
+import { equipFromBag, unequipToBag, type EquipResult } from "./sim/equip";
 import { loadPersistedGroup, persistGroup, replaceGroupMember } from "./sim/group";
-import { moveInventoryItem, type InventoryPlacement } from "./sim/inventory";
+import { loadPersistedBag, moveInventoryItem, persistBag, type InventoryPlacement } from "./sim/inventory";
 import { generateStarterBag, rollItemIntoBag } from "./sim/items";
 import type { DungeonEncounter } from "./sim/dungeonWorld";
 import { DungeonScreen } from "./screens/DungeonScreen";
@@ -12,13 +14,17 @@ import { StartScreen } from "./screens/StartScreen";
 export function App() {
   const [screen, setScreen] = useState<"start" | "group" | "field" | "dungeon" | "items">("start");
   const [group, setGroup] = useState(loadPersistedGroup);
-  const [bag, setBag] = useState(() => generateStarterBag(1));
+  const [bag, setBag] = useState(() => loadPersistedBag() ?? generateStarterBag(1));
   const [encounter, setEncounter] = useState<DungeonEncounter | undefined>();
   const [dungeonBackScreen, setDungeonBackScreen] = useState<"start" | "group">("start");
 
   useEffect(() => {
     persistGroup(group);
   }, [group]);
+
+  useEffect(() => {
+    persistBag(bag);
+  }, [bag]);
 
   const moveBagItem = (itemId: string, placement: InventoryPlacement) => {
     setBag((currentBag) => moveInventoryItem(currentBag, itemId, placement));
@@ -27,6 +33,19 @@ export function App() {
   const rollBagItem = () => {
     setBag((currentBag) => rollItemIntoBag(currentBag));
   };
+
+  const applyEquip = (memberIndex: number, result: EquipResult): string | null => {
+    if (!result.ok) return result.reason;
+    setBag(result.bag);
+    setGroup((current) => replaceGroupMember(current, memberIndex, result.character));
+    return null;
+  };
+
+  const equipItem = (memberIndex: number, itemId: string, slot?: EquipmentSlot) =>
+    applyEquip(memberIndex, equipFromBag(bag, group[memberIndex]!, itemId, slot));
+
+  const unequipItem = (memberIndex: number, slot: EquipmentSlot, placement?: InventoryPlacement) =>
+    applyEquip(memberIndex, unequipToBag(bag, group[memberIndex]!, slot, placement));
 
   if (screen === "start") {
     return (
@@ -70,6 +89,8 @@ export function App() {
         }}
         onMoveBagItem={moveBagItem}
         onRollBagItem={rollBagItem}
+        onEquipItem={equipItem}
+        onUnequipItem={unequipItem}
         onChangeMember={(index, member) => setGroup((current) => replaceGroupMember(current, index, member))}
       />
     );

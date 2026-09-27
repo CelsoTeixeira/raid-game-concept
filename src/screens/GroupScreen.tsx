@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { GroupMember } from "../sim/group";
 import type { InventoryItem, InventoryPlacement } from "../sim/inventory";
+import { formatItemBonuses, formatItemBonusesShort } from "../sim/items";
 import { appearanceFrames, getMemberAppearance } from "../appearance";
 import {
   CLASS_SPECS,
@@ -18,8 +19,18 @@ import {
   EQUIPMENT_SLOT_LABELS,
   characterWithClass,
   characterWithSpec,
+  slotsForItem,
+  type EquipmentSlot,
 } from "../sim/character";
 import { GroupBag } from "./GroupBag";
+import {
+  useItemDrag,
+  type DragSource,
+  type DropTarget,
+  type ItemDrag,
+  type ItemDragHandlers,
+  type StartItemDrag,
+} from "./itemDrag";
 
 function MemberPreview({ member, index }: { member: GroupMember; index: number }) {
   const frames = appearanceFrames(getMemberAppearance(member, index));
@@ -41,15 +52,31 @@ function roleLabel(role: GroupMember["role"]): string {
   return role === "dps" ? "DPS" : role[0].toUpperCase() + role.slice(1);
 }
 
+function slotDropClass(drag: ItemDrag | null, slot: EquipmentSlot): string {
+  if (drag?.source.from !== "bag") return "";
+  const fits = slotsForItem(drag.source.item.slot).includes(slot);
+  const isOver = drag.target?.to === "slot" && drag.target.slot === slot;
+  if (isOver) return fits ? "is-drop-over" : "is-drop-blocked";
+  return fits ? "is-drop-allowed" : "";
+}
+
 function CharacterPanel({
   member,
   index,
+  drag,
+  startDrag,
+  dragHandlers,
   onChange,
+  onUnequip,
   onClose,
 }: {
   member: GroupMember;
   index: number;
+  drag: ItemDrag | null;
+  startDrag: StartItemDrag;
+  dragHandlers: ItemDragHandlers;
   onChange: (member: GroupMember) => void;
+  onUnequip: (slot: EquipmentSlot) => void;
   onClose: () => void;
 }) {
   const spec = getSpec(member);
@@ -130,10 +157,40 @@ function CharacterPanel({
           <ul className="equipment-slots" aria-label={`${unitLabel} equipment slots`}>
             {EQUIPMENT_SLOTS.map((slot) => {
               const item = member.equipment[slot];
+              const isDragging = drag?.source.from === "slot" && drag.source.slot === slot;
               return (
-                <li className="equipment-slot" key={slot}>
+                <li
+                  className={`equipment-slot ${slotDropClass(drag, slot)}`}
+                  data-equipment-slot={slot}
+                  key={slot}
+                >
                   <span>{EQUIPMENT_SLOT_LABELS[slot]}</span>
-                  {item ? <span>{item.name}</span> : <span className="equipment-slot-empty">Empty</span>}
+                  {item ? (
+                    <div className="equipment-slot-item">
+                      <button
+                        className={`equipment-slot-gear ${isDragging ? "is-dragging" : ""}`}
+                        data-rarity={item.rarity}
+                        type="button"
+                        aria-label={`${item.name}, ${item.rarity}, ${formatItemBonuses(item.bonuses) || "no bonuses"}. Drag to the bag or double-click to unequip.`}
+                        onPointerDown={(event) => startDrag(event, { from: "slot", item, slot })}
+                        onDoubleClick={() => onUnequip(slot)}
+                        {...dragHandlers}
+                      >
+                        <span>{item.name}</span>
+                        <span className="equipment-slot-stats">{formatItemBonusesShort(item.bonuses)}</span>
+                      </button>
+                      <button
+                        className="equipment-slot-unequip"
+                        type="button"
+                        aria-label={`Unequip ${item.name}`}
+                        onClick={() => onUnequip(slot)}
+                      >
+                        Unequip
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="equipment-slot-empty">Empty</span>
+                  )}
                 </li>
               );
             })}
@@ -151,6 +208,8 @@ export function GroupScreen({
   onEnterDungeon,
   onMoveBagItem,
   onRollBagItem,
+  onEquipItem,
+  onUnequipItem,
   onChangeMember,
 }: {
   group: GroupMember[];
@@ -159,11 +218,42 @@ export function GroupScreen({
   onEnterDungeon: () => void;
   onMoveBagItem: (itemId: string, placement: InventoryPlacement) => void;
   onRollBagItem: () => void;
+  /** Returns why the item could not be equipped, or null on success. */
+  onEquipItem: (memberIndex: number, itemId: string, slot?: EquipmentSlot) => string | null;
+  /** Returns why the item could not be unequipped, or null on success. */
+  onUnequipItem: (memberIndex: number, slot: EquipmentSlot, placement?: InventoryPlacement) => string | null;
   onChangeMember: (index: number, member: GroupMember) => void;
 }) {
   const [selectedMemberIndex, setSelectedMemberIndex] = useState<number | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const boardRef = useRef<HTMLDivElement | null>(null);
   const selectedMember =
     selectedMemberIndex === null ? undefined : group[selectedMemberIndex];
+
+  const equip = (itemId: string, slot?: EquipmentSlot) => {
+    if (selectedMemberIndex === null) return;
+    setNotice(onEquipItem(selectedMemberIndex, itemId, slot));
+  };
+
+  const unequip = (slot: EquipmentSlot, placement?: InventoryPlacement) => {
+    if (selectedMemberIndex === null) return;
+    setNotice(onUnequipItem(selectedMemberIndex, slot, placement));
+  };
+
+  const handleDrop = (source: DragSource, target: NonNullable<DropTarget>) => {
+    if (source.from === "bag") {
+      if (target.to === "slot") {
+        equip(source.item.id, target.slot);
+      } else if (target.placement.x !== source.item.x || target.placement.y !== source.item.y) {
+        setNotice(null);
+        onMoveBagItem(source.item.id, target.placement);
+      }
+      return;
+    }
+    if (target.to === "bag") unequip(source.slot, target.placement);
+  };
+
+  const { drag, start: startDrag, handlers: dragHandlers } = useItemDrag(boardRef, handleDrop);
 
   return (
     <main className="screen group-screen">
@@ -193,12 +283,27 @@ export function GroupScreen({
             <CharacterPanel
               member={selectedMember}
               index={selectedMemberIndex!}
+              drag={drag}
+              startDrag={startDrag}
+              dragHandlers={dragHandlers}
               onChange={(next) => onChangeMember(selectedMemberIndex!, next)}
+              onUnequip={(slot) => unequip(slot)}
               onClose={() => setSelectedMemberIndex(null)}
             />
           ) : null}
         </section>
-        <GroupBag items={bag} onMoveItem={onMoveBagItem} onRollItem={onRollBagItem} />
+        <GroupBag
+          items={bag}
+          drag={drag}
+          boardRef={boardRef}
+          startDrag={startDrag}
+          dragHandlers={dragHandlers}
+          canEquip={selectedMember !== undefined}
+          notice={notice}
+          onMoveItem={onMoveBagItem}
+          onEquipItem={(itemId) => equip(itemId)}
+          onRollItem={onRollBagItem}
+        />
       </div>
       <div className="screen-actions">
         <button type="button" onClick={onBack}>

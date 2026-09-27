@@ -26,6 +26,10 @@ describe("cached combat stats", () => {
     const withSword = characterWithEquipment(arms, "mainHand", {
       id: "sword",
       name: "Sword",
+      width: 1,
+      height: 3,
+      rarity: "gray",
+      slot: "mainHand",
       bonuses: { strength: 2 },
     });
     expect(withSword.attributes.strength).toBe(arms.attributes.strength + 2);
@@ -34,6 +38,10 @@ describe("cached combat stats", () => {
     const withRing = characterWithEquipment(withSword, "ring1", {
       id: "ring",
       name: "Ring",
+      width: 1,
+      height: 1,
+      rarity: "gray",
+      slot: "ring1",
       bonuses: { vitality: 1 },
     });
     expect(withRing.stats.maxHealth).toBe(bareHp + 10);
@@ -42,6 +50,10 @@ describe("cached combat stats", () => {
     const withShield = characterWithEquipment(withRing, "offHand", {
       id: "shield",
       name: "Shield",
+      width: 2,
+      height: 2,
+      rarity: "gray",
+      slot: "offHand",
       bonuses: { armor: 4 },
     });
     expect(withShield.stats.armor).toBe(arms.stats.armor + 4);

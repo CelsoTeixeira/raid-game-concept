@@ -1,8 +1,11 @@
-import type { EquipmentSlot } from "./character";
+import { EQUIPMENT_SLOTS, type EquipmentSlot } from "./character";
 import type { Attributes } from "./types";
 
 export const BAG_COLUMNS = 5;
 export const BAG_ROWS = 5;
+
+const BAG_STORAGE_KEY = "raid-game.bag.v1";
+const BONUS_KEYS = ["vitality", "intelligence", "strength", "agility", "armor"] as const;
 
 export const ITEM_RARITIES = ["gray", "green", "blue", "purple", "orange"] as const;
 export type ItemRarity = (typeof ITEM_RARITIES)[number];
@@ -99,4 +102,75 @@ export function moveInventoryItem(
     if (item.x === placement.x && item.y === placement.y) return item;
     return { ...item, ...placement };
   });
+}
+
+function isEquipmentSlot(value: unknown): value is EquipmentSlot {
+  return typeof value === "string" && (EQUIPMENT_SLOTS as readonly string[]).includes(value);
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+/** Validates stored gear, from the bag or an equipment slot. */
+export function parseGearItem(value: unknown): UnplacedItem | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.id !== "string" || typeof raw.name !== "string") return null;
+  if (!isPositiveInteger(raw.width) || !isPositiveInteger(raw.height)) return null;
+  if (!isItemRarity(raw.rarity) || !isEquipmentSlot(raw.slot)) return null;
+  if (typeof raw.bonuses !== "object" || raw.bonuses === null) return null;
+
+  const rawBonuses = raw.bonuses as Record<string, unknown>;
+  const bonuses: ItemBonuses = {};
+  for (const key of BONUS_KEYS) {
+    const bonus = rawBonuses[key];
+    if (typeof bonus === "number" && Number.isFinite(bonus)) bonuses[key] = bonus;
+  }
+
+  return {
+    id: raw.id,
+    name: raw.name,
+    width: raw.width,
+    height: raw.height,
+    bonuses,
+    rarity: raw.rarity,
+    slot: raw.slot,
+  };
+}
+
+/** Saved bag, or null when nothing valid is stored. */
+export function loadPersistedBag(): InventoryItem[] | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const stored = window.localStorage.getItem(BAG_STORAGE_KEY);
+    if (!stored) return null;
+
+    const parsed: unknown = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return null;
+
+    let bag: InventoryItem[] = [];
+    for (const raw of parsed) {
+      const item = parseGearItem(raw);
+      if (!item) return null;
+      const { x, y } = raw as { x?: unknown; y?: unknown };
+      if (typeof x !== "number" || typeof y !== "number") return null;
+      if (!itemFitsAt(bag, item, { x, y })) return null;
+      bag = [...bag, { ...item, x, y }];
+    }
+    return bag;
+  } catch {
+    return null;
+  }
+}
+
+export function persistBag(items: InventoryItem[]): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(BAG_STORAGE_KEY, JSON.stringify(items));
+  } catch {
+    // Storage can be unavailable or full; the in-memory bag remains usable.
+  }
 }

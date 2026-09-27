@@ -8,7 +8,7 @@ import {
   type ClassKit,
   type UnitClass,
 } from "./classes";
-import type { ItemBonuses, ItemRarity } from "./inventory";
+import type { ItemBonuses, UnplacedItem } from "./inventory";
 import type { Attributes, RangeType, Role, Stats } from "./types";
 
 export const EQUIPMENT_SLOTS = [
@@ -33,14 +33,15 @@ export const EQUIPMENT_SLOT_LABELS: Record<EquipmentSlot, string> = {
   ring2: "Ring 2",
 };
 
-export type EquippedItem = {
-  id: string;
-  name: string;
-  bonuses: ItemBonuses;
-  rarity?: ItemRarity;
-};
+/** Equipped gear keeps its bag footprint and slot so it can go back into the bag. */
+export type EquippedItem = UnplacedItem;
 
 export type Equipment = Record<EquipmentSlot, EquippedItem | null>;
+
+/** Slots an item can go in. Rings roll as `ring1` and fit either ring slot. */
+export function slotsForItem(itemSlot: EquipmentSlot): EquipmentSlot[] {
+  return itemSlot === "ring1" || itemSlot === "ring2" ? ["ring1", "ring2"] : [itemSlot];
+}
 
 /**
  * Roster character. `attributes` and `stats` are a cache.
