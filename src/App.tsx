@@ -1,8 +1,17 @@
 import { useEffect, useState } from "react";
 import type { DungeonEncounter } from "./sim/dungeonWorld";
 import { DEFAULT_GROUP } from "./sim/group";
-import { loadPersistedGuild, moveStorageItem, persistGuild } from "./sim/guild";
+import {
+  equipGuildItem,
+  loadPersistedGuild,
+  moveStorageItem,
+  persistGuild,
+  recruitFirstCharacter,
+  unequipGuildItem,
+  type GuildEquipResult,
+} from "./sim/guild";
 import type { InventoryPlacement } from "./sim/inventory";
+import { mulberry32 } from "./sim/items";
 import { CharacterDebugScreen } from "./screens/CharacterDebugScreen";
 import { DungeonScreen } from "./screens/DungeonScreen";
 import { FieldScreen } from "./screens/FieldScreen";
@@ -26,6 +35,12 @@ export function App() {
     setGuild((current) => moveStorageItem(current, itemId, placement));
   };
 
+  const applyGuildResult = (result: GuildEquipResult): string | null => {
+    if (!result.ok) return result.reason;
+    setGuild(result.guild);
+    return null;
+  };
+
   if (screen === "start") {
     return (
       <StartScreen
@@ -44,6 +59,13 @@ export function App() {
       <GuildScreen
         guild={guild}
         onMoveStorageItem={moveGuildStorageItem}
+        onRecruit={() => setGuild((current) => recruitFirstCharacter(current, mulberry32(Date.now())))}
+        onEquipItem={(characterId, itemId, slot) =>
+          applyGuildResult(equipGuildItem(guild, characterId, itemId, slot))
+        }
+        onUnequipItem={(characterId, slot, placement) =>
+          applyGuildResult(unequipGuildItem(guild, characterId, slot, placement))
+        }
         onPlay={() => setScreen("groupSelect")}
         onBack={() => setScreen("start")}
       />

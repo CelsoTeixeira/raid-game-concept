@@ -1,12 +1,15 @@
 import { parseCharacterLook } from "../appearance";
 import {
+  createCharacter,
   EQUIPMENT_SLOTS,
   emptyEquipment,
   refreshCombat,
   slotsForItem,
   type Character,
   type Equipment,
+  type EquipmentSlot,
 } from "./character";
+import { equipFromBag, unequipToBag, type EquipResult } from "./equip";
 import {
   isItemRarity,
   moveInventoryItem,
@@ -16,6 +19,8 @@ import {
   type InventoryPlacement,
   type ItemRarity,
 } from "./inventory";
+import { rollCharacter } from "./characterGen";
+import type { Rng } from "./items";
 import { REGIONS, SEXES, type CharacterName, type Region, type Sex } from "./names";
 import { PRIMARY_STATS } from "./stats";
 import type { Attributes, Role } from "./types";
@@ -37,6 +42,74 @@ const GUILD_STORAGE_KEY = "raid-game.guild.v1";
 
 export function emptyGuild(): Guild {
   return { characters: [], storage: [] };
+}
+
+/** Rarity of the free roll offered to an empty guild. Lowest quality for now. */
+export const FIRST_RECRUIT_RARITY: ItemRarity = "gray";
+
+function newCharacterId(): string {
+  const uuid =
+    globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `char-${uuid}`;
+}
+
+/**
+ * An empty guild may roll one character to start with. No-op once anyone is in the guild.
+ * Recruits arrive with no gear and the dps role; both are changed later.
+ */
+export function recruitFirstCharacter(guild: Guild, rng: Rng): Guild {
+  if (guild.characters.length > 0) return guild;
+  const rolled = rollCharacter({ rng, rarity: FIRST_RECRUIT_RARITY, takenNames: new Set() });
+  const character = createCharacter({
+    id: newCharacterId(),
+    role: "dps",
+    sex: rolled.sex,
+    look: rolled.look,
+    baseAttributes: rolled.baseAttributes,
+  });
+  return {
+    ...guild,
+    characters: [{ ...character, name: rolled.name, rarity: rolled.rarity, region: rolled.region }],
+  };
+}
+
+export type GuildEquipResult = { ok: true; guild: Guild } | { ok: false; reason: string };
+
+function applyEquip(guild: Guild, characterId: string, result: EquipResult): GuildEquipResult {
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    guild: {
+      storage: result.bag,
+      characters: guild.characters.map((current) =>
+        current.id === characterId ? { ...current, ...result.character } : current,
+      ),
+    },
+  };
+}
+
+/** Storage item onto a guild character. A replaced item goes back to storage. */
+export function equipGuildItem(
+  guild: Guild,
+  characterId: string,
+  itemId: string,
+  slot?: EquipmentSlot,
+): GuildEquipResult {
+  const character = guild.characters.find((current) => current.id === characterId);
+  if (!character) return { ok: false, reason: "That character is no longer in the guild." };
+  return applyEquip(guild, characterId, equipFromBag(guild.storage, character, itemId, slot));
+}
+
+/** Equipped item back to storage, at `placement` or the first free spot. */
+export function unequipGuildItem(
+  guild: Guild,
+  characterId: string,
+  slot: EquipmentSlot,
+  placement?: InventoryPlacement,
+): GuildEquipResult {
+  const character = guild.characters.find((current) => current.id === characterId);
+  if (!character) return { ok: false, reason: "That character is no longer in the guild." };
+  return applyEquip(guild, characterId, unequipToBag(guild.storage, character, slot, placement));
 }
 
 export function moveStorageItem(guild: Guild, itemId: string, placement: InventoryPlacement): Guild {
