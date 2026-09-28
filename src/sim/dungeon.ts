@@ -95,16 +95,11 @@ function carveBrush(
   c: number,
   r: number,
   as: TileKind,
-  avoid?: DungeonRect,
 ): void {
-  const paint = (cc: number, rr: number) => {
-    if (avoid && insideRoom(avoid, cc, rr)) return;
-    carveCell(dungeon, cc, rr, as);
-  };
-  paint(c, r);
-  paint(c + 1, r);
-  paint(c, r + 1);
-  paint(c + 1, r + 1);
+  carveCell(dungeon, c, r, as);
+  carveCell(dungeon, c + 1, r, as);
+  carveCell(dungeon, c, r + 1, as);
+  carveCell(dungeon, c + 1, r + 1, as);
 }
 
 function carveRoom(dungeon: Pick<Dungeon, "blocked" | "kind" | "cols" | "rows">, room: DungeonRect): void {
@@ -119,15 +114,14 @@ function carveLine(
   dungeon: Pick<Dungeon, "blocked" | "kind" | "cols" | "rows">,
   a: GridPoint,
   b: GridPoint,
-  avoid?: DungeonRect,
 ): void {
   let c = a.c;
   let r = a.r;
-  carveBrush(dungeon, c, r, "corridor", avoid);
+  carveBrush(dungeon, c, r, "corridor");
   while (c !== b.c || r !== b.r) {
     if (c !== b.c) c += Math.sign(b.c - c);
     else r += Math.sign(b.r - r);
-    carveBrush(dungeon, c, r, "corridor", avoid);
+    carveBrush(dungeon, c, r, "corridor");
   }
 }
 
@@ -136,11 +130,22 @@ function carveL(
   a: GridPoint,
   b: GridPoint,
   rng: Rng,
-  avoid?: DungeonRect,
 ): void {
   const corner: GridPoint = rng() < 0.5 ? { c: b.c, r: a.r } : { c: a.c, r: b.r };
-  carveLine(dungeon, a, corner, avoid);
-  carveLine(dungeon, corner, b, avoid);
+  carveLine(dungeon, a, corner);
+  carveLine(dungeon, corner, b);
+}
+
+/** Vertical leg first so the 2-wide corridor meets the boss west face head-on as a 2-tile door. */
+function carveGate(
+  dungeon: Pick<Dungeon, "blocked" | "kind" | "cols" | "rows">,
+  from: GridPoint,
+  boss: DungeonRect,
+): void {
+  const target = roomCenter(boss);
+  const corner: GridPoint = { c: from.c, r: target.r };
+  carveLine(dungeon, from, corner);
+  carveLine(dungeon, corner, target);
 }
 
 function findRoot(parent: number[], i: number): number {
@@ -178,16 +183,15 @@ function connectRooms(
       continue;
     }
     parent[rb] = ra;
-    carveL(dungeon, centers[edge.a], centers[edge.b], rng, boss);
+    carveL(dungeon, centers[edge.a], centers[edge.b], rng);
   }
   const extraCount = Math.min(extra.length, randInt(rng, 1, 3));
   for (let i = 0; i < extraCount; i++) {
     const pick = extra.splice(randInt(rng, 0, extra.length - 1), 1)[0];
     if (!pick) break;
-    carveL(dungeon, centers[pick.a], centers[pick.b], rng, boss);
+    carveL(dungeon, centers[pick.a], centers[pick.b], rng);
   }
   if (!boss || others.length === 0) return;
-  sealBossPerimeter(dungeon, boss);
   let gate = others[0];
   let best = Infinity;
   const target = roomCenter(boss);
@@ -199,7 +203,7 @@ function connectRooms(
       gate = room;
     }
   }
-  carveL(dungeon, roomCenter(gate), target, rng);
+  carveGate(dungeon, roomCenter(gate), boss);
 }
 
 function tilesTouchingBoss(
@@ -224,16 +228,6 @@ function tilesTouchingBoss(
     }
   }
   return out;
-}
-
-function sealBossPerimeter(
-  dungeon: Pick<Dungeon, "blocked" | "kind" | "cols" | "rows">,
-  boss: DungeonRect,
-): void {
-  for (const tile of tilesTouchingBoss(dungeon, boss)) {
-    dungeon.blocked[tile.r][tile.c] = true;
-    dungeon.kind[tile.r][tile.c] = "wall";
-  }
 }
 
 /** Walkable tiles just outside the boss, grouped into doorways. */
@@ -340,7 +334,7 @@ function finishDungeon(
   const steps = findPath(blocked, start, end);
   if (steps.length === 0) return null;
   const built: Dungeon = { seed, cols, rows, blocked, kind, rooms, boss, start, end, path: [start, ...steps] };
-  if (countBossEntrances(built) !== 1) return null;
+  if (tilesTouchingBoss(built, boss).length > 2) return null;
   return built;
 }
 
@@ -370,10 +364,9 @@ function fallbackDungeon(seed: number): Dungeon {
   ];
   const draft = { blocked, kind, cols, rows };
   for (const room of rooms) carveRoom(draft, room);
-  carveL(draft, roomCenter(rooms[0]), roomCenter(rooms[1]), () => 0.2, rooms[3]);
-  carveL(draft, roomCenter(rooms[1]), roomCenter(rooms[2]), () => 0.8, rooms[3]);
-  sealBossPerimeter(draft, rooms[3]);
-  carveL(draft, roomCenter(rooms[2]), roomCenter(rooms[3]), () => 0.3);
+  carveL(draft, roomCenter(rooms[0]), roomCenter(rooms[1]), () => 0.2);
+  carveL(draft, roomCenter(rooms[1]), roomCenter(rooms[2]), () => 0.8);
+  carveGate(draft, roomCenter(rooms[2]), rooms[3]);
   const built = finishDungeon(seed, cols, rows, blocked, kind, rooms);
   if (!built) throw new Error("fallback dungeon must be walkable");
   return built;

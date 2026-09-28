@@ -1,5 +1,5 @@
 import { ENEMY_APPEARANCE } from "../appearance";
-import { ENEMY_GROUP_SEPARATION, TILE } from "./balance";
+import { ENEMY_ENGAGE_RANGE, ENEMY_GROUP_SEPARATION, TILE } from "./balance";
 import { living } from "./combat";
 import {
   countRoomsBySize,
@@ -52,10 +52,12 @@ const GENERATED_PACKS: Record<Exclude<DungeonRect["size"], "boss">, readonly num
   medium: [4, 3, 3],
   big: [4, 4, 4, 3],
 };
+const PARTY_SPAWN_GUARD = ENEMY_ENGAGE_RANGE + TILE * 2;
 
 /**
  * Dungeon sandbox: walls from {@link generateDungeon}, with several seeded enemy packs in each
- * ordinary room except the entry and boss rooms. Packs sit farther apart than social range.
+ * ordinary room except the entry and boss rooms. Packs sit farther apart than social range, across
+ * rooms too, and outside engage range of the party spawn.
  * No friendlies — packs idle in place.
  */
 export class DungeonWorld {
@@ -211,16 +213,18 @@ export class DungeonWorld {
       candidates[j] = temp;
     }
 
-    const foreign = this.occupiedTiles().filter(
+    const occupied = this.occupiedTiles();
+    const foreign = occupied.filter(
       (tile) => tile.c >= room.c && tile.c < room.c + room.w && tile.r >= room.r && tile.r < room.r + room.h,
     );
     const midC = room.c + room.w / 2;
     const midR = room.r + room.h / 2;
     candidates.sort((a, b) => this.anchorScore(b, foreign, midC, midR) - this.anchorScore(a, foreign, midC, midR));
 
+    const blocksPack = (tile: GridPoint) => this.tooCloseToForeign(tile, occupied) || this.nearPartySpawn(tile);
     const clusterReach = count <= 4 ? 1 : 2;
     for (const anchor of candidates) {
-      if (this.tooCloseToForeign(anchor, foreign)) continue;
+      if (blocksPack(anchor)) continue;
       const taken = new Set(foreign.map((tile) => tileKey(tile.c, tile.r)));
       const spots: GridPoint[] = [];
       const reserved = (c: number, r: number) =>
@@ -231,7 +235,7 @@ export class DungeonWorld {
         Math.max(Math.abs(c - anchor.c), Math.abs(r - anchor.r)) > clusterReach ||
         taken.has(tileKey(c, r)) ||
         isReservedTile(this.dungeon, c, r) ||
-        this.tooCloseToForeign({ c, r }, foreign);
+        blocksPack({ c, r });
       for (let i = 0; i < count; i++) {
         const spot = nearestOpen(this.dungeon.blocked, anchor, reserved);
         if (!spot) break;
@@ -270,6 +274,13 @@ export class DungeonWorld {
       if (Math.hypot(here.x - there.x, here.y - there.y) <= ENEMY_GROUP_SEPARATION) return true;
     }
     return false;
+  }
+
+  /** Party slots are the entry tiles nearest `start`, so a padded radius covers them. */
+  private nearPartySpawn(tile: GridPoint): boolean {
+    const here = gridCenter(tile, TILE);
+    const start = gridCenter(this.dungeon.start, TILE);
+    return Math.hypot(here.x - start.x, here.y - start.y) <= PARTY_SPAWN_GUARD;
   }
 
   private addGroup(anchor: GridPoint, spots: GridPoint[]): EnemyGroup {
