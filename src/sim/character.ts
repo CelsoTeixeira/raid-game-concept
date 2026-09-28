@@ -1,5 +1,7 @@
+import type { CharacterLook } from "../appearance";
 import { GEAR_KINDS, type GearSlot } from "./gearKinds";
 import type { UnplacedItem } from "./inventory";
+import type { Sex } from "./names";
 import { addAttributes, deriveStats, UNARMED, type GearTotals } from "./stats";
 import type { Attributes, Role, Stats } from "./types";
 
@@ -55,6 +57,8 @@ export type CharacterDraft = {
   baseAttributes: Attributes;
   equipment: Equipment;
   role: Role;
+  sex: Sex;
+  look: CharacterLook;
 };
 
 /**

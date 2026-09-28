@@ -9,37 +9,29 @@ export type CharacterAppearance = {
   body: SpriteFrame;
   clothing: SpriteFrame | null;
   pants: SpriteFrame | null;
+  facialHair: SpriteFrame | null;
+  hair: SpriteFrame | null;
   equipment: SpriteFrame[];
 };
 
-type AppearanceVariant = {
-  body: SpriteFrame;
+type Outfit = {
   clothing: SpriteFrame;
   pants: SpriteFrame;
 };
 
-const APPEARANCE_VARIANTS: AppearanceVariant[] = [
-  {
-    body: { col: 0, row: 0 },
-    clothing: { col: 6, row: 0 },
-    pants: { col: 3, row: 5 },
-  },
-  {
-    body: { col: 0, row: 1 },
-    clothing: { col: 10, row: 0 },
-    pants: { col: 3, row: 6 },
-  },
-  {
-    body: { col: 0, row: 2 },
-    clothing: { col: 14, row: 0 },
-    pants: { col: 3, row: 7 },
-  },
+/** Plain clothes by group slot so nobody is drawn bare. */
+const OUTFITS: Outfit[] = [
+  { clothing: { col: 6, row: 0 }, pants: { col: 3, row: 5 } },
+  { clothing: { col: 10, row: 0 }, pants: { col: 3, row: 6 } },
+  { clothing: { col: 14, row: 0 }, pants: { col: 3, row: 7 } },
 ];
 
 export const ENEMY_APPEARANCE: CharacterAppearance = {
   body: { col: 0, row: 3 },
   clothing: null,
   pants: null,
+  facialHair: null,
+  hair: null,
   equipment: [],
 };
 
@@ -64,20 +56,23 @@ function equipmentFrames(member: GroupMember): SpriteFrame[] {
 }
 
 export function getMemberAppearance(member: GroupMember, index: number): CharacterAppearance {
-  const variant = APPEARANCE_VARIANTS[index % APPEARANCE_VARIANTS.length];
+  const outfit = OUTFITS[index % OUTFITS.length]!;
   return {
-    body: variant.body,
-    clothing: variant.clothing,
-    pants: variant.pants,
+    ...member.look,
+    ...outfit,
     equipment: equipmentFrames(member),
   };
 }
 
 export function appearanceFrames(appearance: CharacterAppearance): SpriteFrame[] {
-  const frames = [appearance.body];
-  if (appearance.pants) frames.push(appearance.pants);
-  if (appearance.clothing) frames.push(appearance.clothing);
-  return [...frames, ...appearance.equipment];
+  const layers = [
+    appearance.body,
+    appearance.pants,
+    appearance.clothing,
+    appearance.facialHair,
+    appearance.hair,
+  ];
+  return [...layers.filter((frame): frame is SpriteFrame => frame !== null), ...appearance.equipment];
 }
 
 /** Rolled per character. Sex only changes the hair pools. */
@@ -147,10 +142,6 @@ const FACIAL_HAIR: readonly SpriteFrame[] = [
 
 const FACIAL_HAIR_CHANCE = 0.4;
 
-/** Plain clothes so a rolled character is not drawn bare. */
-const STARTER_CLOTHING: SpriteFrame = { col: 6, row: 0 };
-const STARTER_PANTS: SpriteFrame = { col: 3, row: 5 };
-
 function pickFrame(rng: Rng, frames: readonly SpriteFrame[]): SpriteFrame {
   return frames[Math.floor(rng.next() * frames.length)]!;
 }
@@ -172,8 +163,21 @@ export function rollCharacterLook(rng: Rng, sex: Sex): CharacterLook {
   };
 }
 
+/** A look in the first outfit with nothing held. */
 export function lookFrames(look: CharacterLook): SpriteFrame[] {
-  const frames = [look.body, STARTER_PANTS, STARTER_CLOTHING];
-  if (look.facialHair) frames.push(look.facialHair);
-  return [...frames, look.hair];
+  return appearanceFrames({ ...look, ...OUTFITS[0]!, equipment: [] });
+}
+
+function isSpriteFrame(value: unknown): value is SpriteFrame {
+  if (typeof value !== "object" || value === null) return false;
+  const { col, row } = value as Record<string, unknown>;
+  return Number.isInteger(col) && Number.isInteger(row) && (col as number) >= 0 && (row as number) >= 0;
+}
+
+export function parseCharacterLook(value: unknown): CharacterLook | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const { body, hair, facialHair } = value as Record<string, unknown>;
+  if (!isSpriteFrame(body) || !isSpriteFrame(hair)) return null;
+  if (facialHair !== null && !isSpriteFrame(facialHair)) return null;
+  return { body, hair, facialHair };
 }

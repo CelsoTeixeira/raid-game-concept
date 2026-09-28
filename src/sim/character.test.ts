@@ -5,10 +5,11 @@ import { HEALTH_PER_VITALITY } from "./stats";
 import { World } from "./world";
 
 const BASE = { vitality: 10, intelligence: 5, strength: 8, agility: 4 };
+const LOOK = { body: { col: 0, row: 0 }, hair: { col: 19, row: 0 }, facialHair: null };
 
 describe("cached combat stats", () => {
   it("derives combat numbers from base attributes, not from role", () => {
-    const tank = createCharacter({ id: "test-tank", role: "tank", baseAttributes: BASE });
+    const tank = createCharacter({ id: "test-tank", role: "tank", baseAttributes: BASE, sex: "male", look: LOOK });
     expect(tank.stats.maxHealth).toBe(20 + 10 * HEALTH_PER_VITALITY);
     expect(tank.stats.attackPower).toBe(1 + BASE.strength);
     expect(tank.stats.healPower).toBe(0);
@@ -20,7 +21,7 @@ describe("cached combat stats", () => {
   });
 
   it("rebuilds the cache when gear is equipped, not during combat ticks", () => {
-    const bare = createCharacter({ id: "test-bare", role: "dps", baseAttributes: BASE });
+    const bare = createCharacter({ id: "test-bare", role: "dps", baseAttributes: BASE, sex: "male", look: LOOK });
     const bareHp = bare.stats.maxHealth;
 
     const withSword = characterWithEquipment(bare, "mainHand", {

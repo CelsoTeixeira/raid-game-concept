@@ -1,3 +1,4 @@
+import { parseCharacterLook, rollCharacterLook } from "../appearance";
 import {
   createCharacter,
   EQUIPMENT_SLOTS,
@@ -11,6 +12,7 @@ import {
 import type { GearKindId } from "./gearKinds";
 import { parseGearItem } from "./inventory";
 import { generateGear, mulberry32 } from "./items";
+import { SEXES, type Sex } from "./names";
 import { PRIMARY_STATS, rollBaseAttributes } from "./stats";
 import type { Attributes, Role } from "./types";
 
@@ -37,19 +39,27 @@ function defaultEquipment(index: number, kinds: Partial<Record<EquipmentSlot, Ge
 }
 
 /** Default group for 5-man content: seeded rolls, gray starter gear, roles picked for behavior. */
-export const DEFAULT_GROUP: Character[] = DEFAULT_PLANS.map((plan, index) =>
-  createCharacter({
+export const DEFAULT_GROUP: Character[] = DEFAULT_PLANS.map((plan, index) => {
+  const lookRng = mulberry32(2000 + index);
+  const sex = SEXES[Math.floor(lookRng.next() * SEXES.length)]!;
+  return createCharacter({
     id: `char-${index + 1}`,
     role: plan.role,
     baseAttributes: rollBaseAttributes(mulberry32(index + 1)),
     equipment: defaultEquipment(index, plan.kinds),
-  }),
-);
+    sex,
+    look: rollCharacterLook(lookRng, sex),
+  });
+});
 
-const GROUP_STORAGE_KEY = "raid-game.group.v4";
+const GROUP_STORAGE_KEY = "raid-game.group.v5";
 
 function isRole(value: unknown): value is Role {
   return value === "tank" || value === "dps" || value === "healer";
+}
+
+function isSex(value: unknown): value is Sex {
+  return SEXES.includes(value as Sex);
 }
 
 function parseAttributes(value: unknown): Attributes | null {
@@ -80,15 +90,25 @@ function parseEquipment(value: unknown, seen: Set<string>): Equipment {
 
 function parseMember(value: unknown, index: number, seen: Set<string>): Character | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  const record = value as { id?: unknown; role?: unknown; baseAttributes?: unknown; equipment?: unknown };
+  const record = value as {
+    id?: unknown;
+    role?: unknown;
+    baseAttributes?: unknown;
+    equipment?: unknown;
+    sex?: unknown;
+    look?: unknown;
+  };
   const baseAttributes = parseAttributes(record.baseAttributes);
-  if (!baseAttributes || !isRole(record.role)) return null;
+  const look = parseCharacterLook(record.look);
+  if (!baseAttributes || !look || !isRole(record.role) || !isSex(record.sex)) return null;
   const id = typeof record.id === "string" && record.id.length > 0 ? record.id : `char-${index + 1}`;
   return refreshCombat({
     id,
     role: record.role,
     baseAttributes,
     equipment: parseEquipment(record.equipment, seen),
+    sex: record.sex,
+    look,
   });
 }
 
@@ -124,6 +144,8 @@ export function persistGroup(group: Character[]): void {
       role: member.role,
       baseAttributes: member.baseAttributes,
       equipment: member.equipment,
+      sex: member.sex,
+      look: member.look,
     }));
     window.localStorage.setItem(GROUP_STORAGE_KEY, JSON.stringify(stored));
   } catch {
