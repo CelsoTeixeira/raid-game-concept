@@ -9,7 +9,7 @@ import {
 import { GEAR_KINDS } from "../sim/gearKinds";
 import type { GuildCharacter } from "../sim/guild";
 import { RARITY_LABELS } from "../sim/inventory";
-import { formatItemBonuses, formatItemBonusesShort, formatWeapon } from "../sim/items";
+import { formatItemBonuses, formatItemBonusesShort, formatWeapon, itemKindLabel } from "../sim/items";
 import { formatName, REGION_LABELS, SEX_LABELS } from "../sim/names";
 import { armorMitigation, isRanged, PRIMARY_STATS, STAT_HELPS, STAT_LABELS, UNARMED } from "../sim/stats";
 import type { ItemDrag, ItemDragHandlers, StartItemDrag } from "./itemDrag";
@@ -114,13 +114,13 @@ export function GuildCharacterPanel({
                         data-rarity={item.rarity}
                         type="button"
                         title={weaponText || undefined}
-                        aria-label={`${item.name}, ${item.rarity} ${GEAR_KINDS[item.kind].label.toLowerCase()}, ${weaponText ? `${weaponText}, ` : ""}${formatItemBonuses(item.bonuses) || "no bonuses"}. Drag to storage or double-click to unequip.`}
+                        aria-label={`${item.name}, ${item.rarity} ${itemKindLabel(item).toLowerCase()}, ${weaponText ? `${weaponText}, ` : ""}${formatItemBonuses(item.bonuses) || "no bonuses"}. Drag to storage or double-click to unequip.`}
                         onPointerDown={(event) => startDrag(event, { from: "slot", item, slot })}
                         onDoubleClick={() => onUnequip(slot)}
                         {...dragHandlers}
                       >
                         <span>{item.name}</span>
-                        <span className="item-kind">{GEAR_KINDS[item.kind].label}</span>
+                        <span className="item-kind">{itemKindLabel(item)}</span>
                         <span className="equipment-slot-stats">{formatItemBonusesShort(item.bonuses)}</span>
                       </button>
                       <button

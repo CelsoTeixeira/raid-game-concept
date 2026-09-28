@@ -1,4 +1,13 @@
-import { GEAR_KINDS, isGearKindId, type GearKindId, type GearSlot } from "./gearKinds";
+import {
+  ARMOR_FAMILIES,
+  GEAR_KINDS,
+  isArmorFamily,
+  isArmorKind,
+  isGearKindId,
+  type ArmorFamily,
+  type GearKindId,
+  type GearSlot,
+} from "./gearKinds";
 import type { Attributes } from "./types";
 
 /** Guild storage grid. */
@@ -38,9 +47,18 @@ export type InventoryItem = InventoryPlacement & {
   rarity: ItemRarity;
   kind: GearKindId;
   slot: GearSlot;
+  /** Set on helmet, chest, and pants only. */
+  armorFamily?: ArmorFamily;
 };
 
 export type UnplacedItem = Omit<InventoryItem, "x" | "y">;
+
+/** Armor saved before subfamilies existed gets a stable one from its id, so reloads agree. */
+function familyFromId(id: string): ArmorFamily {
+  let hash = 0;
+  for (let index = 0; index < id.length; index += 1) hash = (Math.imul(hash, 31) + id.charCodeAt(index)) | 0;
+  return ARMOR_FAMILIES[Math.abs(hash) % ARMOR_FAMILIES.length]!;
+}
 
 export function isItemRarity(value: unknown): value is ItemRarity {
   return typeof value === "string" && (ITEM_RARITIES as readonly string[]).includes(value);
@@ -137,7 +155,7 @@ export function parseGearItem(value: unknown): UnplacedItem | null {
     if (typeof bonus === "number" && Number.isFinite(bonus)) bonuses[key] = bonus;
   }
 
-  return {
+  const item: UnplacedItem = {
     id: raw.id,
     name: raw.name,
     width: raw.width,
@@ -147,6 +165,10 @@ export function parseGearItem(value: unknown): UnplacedItem | null {
     kind: raw.kind,
     slot: GEAR_KINDS[raw.kind].slot,
   };
+  if (isArmorKind(raw.kind)) {
+    item.armorFamily = isArmorFamily(raw.armorFamily) ? raw.armorFamily : familyFromId(raw.id);
+  }
+  return item;
 }
 
 /**

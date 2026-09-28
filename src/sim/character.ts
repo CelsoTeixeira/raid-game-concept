@@ -8,8 +8,9 @@ import type { Attributes, Role, Stats } from "./types";
 export const EQUIPMENT_SLOTS = [
   "mainHand",
   "offHand",
-  "pants",
+  "head",
   "chest",
+  "pants",
   "amulet",
   "ring1",
   "ring2",
@@ -20,8 +21,9 @@ export type EquipmentSlot = (typeof EQUIPMENT_SLOTS)[number];
 export const EQUIPMENT_SLOT_LABELS: Record<EquipmentSlot, string> = {
   mainHand: "Main hand",
   offHand: "Off hand",
-  pants: "Pants",
+  head: "Head",
   chest: "Chest",
+  pants: "Pants",
   amulet: "Amulet",
   ring1: "Ring 1",
   ring2: "Ring 2",
@@ -74,8 +76,9 @@ export function emptyEquipment(): Equipment {
   return {
     mainHand: null,
     offHand: null,
-    pants: null,
+    head: null,
     chest: null,
+    pants: null,
     amulet: null,
     ring1: null,
     ring2: null,

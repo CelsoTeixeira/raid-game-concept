@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import { GEAR_KINDS, GEAR_SLOT_LABELS, GEAR_SLOTS, type GearSlot } from "../sim/gearKinds";
+import { GEAR_SLOT_LABELS, GEAR_SLOTS, type GearSlot } from "../sim/gearKinds";
 import { PRIMARY_STATS, STAT_LABELS } from "../sim/stats";
 import { ITEM_RARITIES, RARITY_LABELS, type ItemRarity, type UnplacedItem } from "../sim/inventory";
 import {
   formatWeapon,
   generateGear,
+  itemKindLabel,
   mulberry32,
   primaryBonusTotal,
   RARITY_BUDGET,
@@ -72,7 +73,7 @@ function ItemCard({ item }: { item: DebugItem }) {
     <article className="item-debug-card" data-rarity={item.rarity}>
       <strong>{item.name}</strong>
       <span>
-        {RARITY_LABELS[item.rarity]} · {GEAR_KINDS[item.kind].label} · {slotLabel(item.slot)} · {item.width}×{item.height}
+        {RARITY_LABELS[item.rarity]} · {itemKindLabel(item)} · {slotLabel(item.slot)} · {item.width}×{item.height}
       </span>
       <span>{traitsText(item)}</span>
       <span>
@@ -233,7 +234,7 @@ export function ItemDebugScreen({ onBack }: { onBack: () => void }) {
                 <tr data-rarity={item.rarity} key={item.key}>
                   <td>{RARITY_LABELS[item.rarity]}</td>
                   <td>{item.name}</td>
-                  <td>{GEAR_KINDS[item.kind].label}</td>
+                  <td>{itemKindLabel(item)}</td>
                   <td>{slotLabel(item.slot)}</td>
                   <td>
                     {item.width}×{item.height}

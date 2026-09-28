@@ -27,6 +27,7 @@ function unplaced(item: InventoryItem): UnplacedItem {
     rarity: item.rarity,
     kind: item.kind,
     slot: item.slot,
+    ...(item.armorFamily && { armorFamily: item.armorFamily }),
   };
 }
 

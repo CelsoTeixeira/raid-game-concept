@@ -1,7 +1,11 @@
 import {
+  ARMOR_FAMILIES,
+  ARMOR_FAMILY_DEFS,
   GEAR_KINDS,
   GEAR_SLOTS,
   gearKindsForSlot,
+  isArmorKind,
+  type ArmorFamily,
   type GearKindId,
   type GearSlot,
 } from "./gearKinds";
@@ -144,14 +148,21 @@ function distributeBonuses(
   return bonuses;
 }
 
-function traitBonuses(kind: GearKindId, rarity: ItemRarity): ItemBonuses {
+function traitBonuses(kind: GearKindId, rarity: ItemRarity, family: ArmorFamily | undefined): ItemBonuses {
   const def = GEAR_KINDS[kind];
   const scale = RARITY_TRAIT_SCALE[rarity];
+  const armorScale = family ? ARMOR_FAMILY_DEFS[family].armorScale : 1;
   const bonuses: ItemBonuses = {};
-  if (def.armor) bonuses.armor = Math.round(def.armor * scale);
+  if (def.armor) bonuses.armor = Math.round(def.armor * scale * armorScale);
   if (def.threat) bonuses.threat = Math.round(def.threat * scale);
   if (def.healing) bonuses.healing = Math.round(def.healing * scale);
   return bonuses;
+}
+
+/** "Plate Chest" for armor, the plain kind label otherwise. */
+export function itemKindLabel(item: Pick<InventoryItem, "kind" | "armorFamily">): string {
+  const label = GEAR_KINDS[item.kind].label;
+  return item.armorFamily ? `${ARMOR_FAMILY_DEFS[item.armorFamily].label} ${label}` : label;
 }
 
 export function primaryBonusTotal(bonuses: ItemBonuses): number {
@@ -204,14 +215,16 @@ export function generateGear(options: {
   rarity?: ItemRarity;
   slot?: GearSlot;
   kind?: GearKindId;
+  armorFamily?: ArmorFamily;
 }): UnplacedItem {
   const { rng } = options;
   const rarity = options.rarity ?? pickRarity(rng);
   const kind = options.kind ?? pickOne(rng, gearKindsForSlot(options.slot ?? pickOne(rng, GEAR_SLOTS)));
   const def = GEAR_KINDS[kind];
-  const noun = pickOne(rng, def.nouns);
+  const family = isArmorKind(kind) ? (options.armorFamily ?? pickOne(rng, ARMOR_FAMILIES)) : undefined;
+  const noun = pickOne(rng, family && isArmorKind(kind) ? ARMOR_FAMILY_DEFS[family].nouns[kind] : def.nouns);
   const adjective = pickOne(rng, RARITY_ADJECTIVES[rarity]);
-  const theme = def.theme ?? pickOne(rng, PRIMARY_STATS);
+  const theme = (family && ARMOR_FAMILY_DEFS[family].theme) ?? def.theme ?? pickOne(rng, PRIMARY_STATS);
 
   return {
     id: options.id ?? `gear-${Math.floor(rng.next() * 1e9).toString(36)}`,
@@ -220,11 +233,12 @@ export function generateGear(options: {
     height: def.height,
     bonuses: {
       ...distributeBonuses(RARITY_BUDGET[rarity], theme, RARITY_STAT_COUNT[rarity], rng),
-      ...traitBonuses(kind, rarity),
+      ...traitBonuses(kind, rarity, family),
     },
     rarity,
     kind,
     slot: def.slot,
+    ...(family && { armorFamily: family }),
   };
 }
 

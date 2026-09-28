@@ -7,7 +7,7 @@ import {
   type Equipment,
   type EquipmentSlot,
 } from "./character";
-import type { GearKindId } from "./gearKinds";
+import type { ArmorFamily, GearKindId } from "./gearKinds";
 import { generateGear, mulberry32 } from "./items";
 import { SEXES } from "./names";
 import { rollBaseAttributes } from "./stats";
@@ -16,21 +16,29 @@ import type { Role } from "./types";
 export type { Character } from "./character";
 export type GroupMember = Character;
 
-const DEFAULT_PLANS: readonly { role: Role; kinds: Partial<Record<EquipmentSlot, GearKindId>> }[] = [
-  { role: "tank", kinds: { mainHand: "sword", offHand: "shield", chest: "chest" } },
+type DefaultPlan = { role: Role; kinds: Partial<Record<EquipmentSlot, GearKindId>>; armor?: ArmorFamily };
+
+const DEFAULT_PLANS: readonly DefaultPlan[] = [
+  { role: "tank", kinds: { mainHand: "sword", offHand: "shield", chest: "chest" }, armor: "plate" },
   { role: "dps", kinds: { mainHand: "axe" } },
   { role: "dps", kinds: { mainHand: "dagger" } },
   { role: "dps", kinds: { mainHand: "staff" } },
   { role: "healer", kinds: { mainHand: "wand", offHand: "tome" } },
 ];
 
-function defaultEquipment(index: number, kinds: Partial<Record<EquipmentSlot, GearKindId>>): Equipment {
+function defaultEquipment(index: number, plan: DefaultPlan): Equipment {
   const rng = mulberry32(1000 + index);
   const equipment = emptyEquipment();
   for (const slot of EQUIPMENT_SLOTS) {
-    const kind = kinds[slot];
+    const kind = plan.kinds[slot];
     if (!kind) continue;
-    equipment[slot] = generateGear({ rng, id: `gear-default-${index + 1}-${slot}`, rarity: "gray", kind });
+    equipment[slot] = generateGear({
+      rng,
+      id: `gear-default-${index + 1}-${slot}`,
+      rarity: "gray",
+      kind,
+      armorFamily: plan.armor,
+    });
   }
   return equipment;
 }
@@ -46,7 +54,7 @@ export const DEFAULT_GROUP: Character[] = DEFAULT_PLANS.map((plan, index) => {
     id: `char-${index + 1}`,
     role: plan.role,
     baseAttributes: rollBaseAttributes(mulberry32(index + 1)),
-    equipment: defaultEquipment(index, plan.kinds),
+    equipment: defaultEquipment(index, plan),
     sex,
     look: rollCharacterLook(lookRng, sex),
   });
