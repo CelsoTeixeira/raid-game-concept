@@ -28,11 +28,12 @@ export function DungeonScreen({
       <aside className="hud">
         <h1>Dungeon</h1>
         <p className="hint">
-          Rooms linked by corridors, from the entry portal to a goal room on a random side. Big maps
-          end in a boss chamber; small and medium maps end in an exit portal. Ordinary rooms seed
-          several enemy packs with space between them so a pull does not grab the whole room. Left
-          click a free floor tile to stamp an extra pack. Right click a pack to remove it. No raid
-          group in this scene.
+          Rooms linked by corridors without loops, from the entry portal down a hallway into a goal
+          room on a random side. Big maps end in a boss chamber; small and medium maps end in an
+          exit portal. Ordinary rooms seed several enemy packs with space between them so a pull
+          does not grab the whole room, and a few 2-enemy packs guard corridors. Left click a free
+          floor tile to stamp an extra pack. Right click a pack to remove it. No raid group in this
+          scene.
         </p>
         <h2>Map size</h2>
         <div className="row-inline">
@@ -83,7 +84,8 @@ export function DungeonScreen({
           Packs {hud.groupCount} · enemies {hud.enemyAlive}
         </p>
         <p className="legend">
-          Packs sit on floor tiles only. The entry portal and the goal tile stay clear so the route
+          Packs sit on floor tiles only, and room packs stay off the wall row. Pack and enemy counts
+          leave out corridor packs. The entry portal and the goal tile stay clear so the route
           remains readable. Dark rooms are small, mid-blue medium, pale big, wine-red is the boss,
           teal is the exit.
         </p>

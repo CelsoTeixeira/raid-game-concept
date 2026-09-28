@@ -41,16 +41,34 @@ const ROOM_SPECS: Record<RoomSize, { minW: number; maxW: number; minH: number; m
   exit: { minW: 8, maxW: 9, minH: 8, maxH: 9 },
 };
 
-/** Grid is built with the goal on the east edge (`cols` along the route); north/south maps come out portrait. */
+/**
+ * Grid is built with the goal on the east edge (`cols` along the route); north/south maps come out portrait.
+ * `approach` is the minimum corridor walk from the last room into the goal room.
+ */
 const MAP_SPECS: Record<
   MapSize,
-  { cols: number; rows: number; goal: GoalKind; bag: ContentSize[]; extras: Array<{ size: ContentSize; chance: number }> }
+  {
+    cols: number;
+    rows: number;
+    goal: GoalKind;
+    approach: number;
+    bag: ContentSize[];
+    extras: Array<{ size: ContentSize; chance: number }>;
+  }
 > = {
-  small: { cols: 48, rows: 32, goal: "exit", bag: ["small", "small", "medium"], extras: [{ size: "medium", chance: 0.5 }] },
+  small: {
+    cols: 48,
+    rows: 32,
+    goal: "exit",
+    approach: 4,
+    bag: ["small", "small", "medium"],
+    extras: [{ size: "medium", chance: 0.5 }],
+  },
   medium: {
     cols: 64,
     rows: 40,
     goal: "exit",
+    approach: 4,
     bag: ["small", "small", "medium", "medium", "big"],
     extras: [
       { size: "small", chance: 0.55 },
@@ -61,6 +79,7 @@ const MAP_SPECS: Record<
     cols: 88,
     rows: 56,
     goal: "boss",
+    approach: 6,
     bag: ["small", "small", "medium", "medium", "medium", "big", "big"],
     extras: [
       { size: "medium", chance: 0.55 },
@@ -126,16 +145,20 @@ function insideRoom(room: DungeonRect, c: number, r: number): boolean {
 }
 
 /** 2x2 brush so corridors stay wide enough for a pack. */
+const BRUSH: Array<[number, number]> = [
+  [0, 0],
+  [1, 0],
+  [0, 1],
+  [1, 1],
+];
+
 function carveBrush(
   dungeon: Pick<Dungeon, "blocked" | "kind" | "cols" | "rows">,
   c: number,
   r: number,
   as: TileKind,
 ): void {
-  carveCell(dungeon, c, r, as);
-  carveCell(dungeon, c + 1, r, as);
-  carveCell(dungeon, c, r + 1, as);
-  carveCell(dungeon, c + 1, r + 1, as);
+  for (const [dc, dr] of BRUSH) carveCell(dungeon, c + dc, r + dr, as);
 }
 
 function carveRoom(dungeon: Pick<Dungeon, "blocked" | "kind" | "cols" | "rows">, room: DungeonRect): void {
@@ -146,28 +169,65 @@ function carveRoom(dungeon: Pick<Dungeon, "blocked" | "kind" | "cols" | "rows">,
   }
 }
 
+function linePoints(a: GridPoint, b: GridPoint): GridPoint[] {
+  let c = a.c;
+  let r = a.r;
+  const out: GridPoint[] = [{ c, r }];
+  while (c !== b.c || r !== b.r) {
+    if (c !== b.c) c += Math.sign(b.c - c);
+    else r += Math.sign(b.r - r);
+    out.push({ c, r });
+  }
+  return out;
+}
+
 function carveLine(
   dungeon: Pick<Dungeon, "blocked" | "kind" | "cols" | "rows">,
   a: GridPoint,
   b: GridPoint,
 ): void {
-  let c = a.c;
-  let r = a.r;
-  carveBrush(dungeon, c, r, "corridor");
-  while (c !== b.c || r !== b.r) {
-    if (c !== b.c) c += Math.sign(b.c - c);
-    else r += Math.sign(b.r - r);
-    carveBrush(dungeon, c, r, "corridor");
-  }
+  for (const p of linePoints(a, b)) carveBrush(dungeon, p.c, p.r, "corridor");
 }
 
+/** Brush tiles running beside a room cost 1; cutting into a room that is not an endpoint costs 100. */
+function cornerCost(
+  dungeon: Pick<Dungeon, "cols" | "rows">,
+  rooms: DungeonRect[],
+  a: GridPoint,
+  corner: GridPoint,
+  b: GridPoint,
+): number {
+  const ends = rooms.filter((room) => insideRoom(room, a.c, a.r) || insideRoom(room, b.c, b.r));
+  let cost = 0;
+  for (const p of [...linePoints(a, corner), ...linePoints(corner, b)]) {
+    for (const [dc, dr] of BRUSH) {
+      const c = p.c + dc;
+      const r = p.r + dr;
+      if (c <= 0 || r <= 0 || c >= dungeon.cols - 1 || r >= dungeon.rows - 1) continue;
+      for (const room of rooms) {
+        if (c < room.c - 1 || c > room.c + room.w || r < room.r - 1 || r > room.r + room.h) continue;
+        if (!insideRoom(room, c, r)) cost += 1;
+        else if (!ends.includes(room)) cost += 100;
+      }
+    }
+  }
+  return cost;
+}
+
+/** Takes the corner whose corridor stays clearest of other rooms; the coin flip only breaks ties. */
 function carveL(
   dungeon: Pick<Dungeon, "blocked" | "kind" | "cols" | "rows">,
+  rooms: DungeonRect[],
   a: GridPoint,
   b: GridPoint,
   rng: Rng,
 ): void {
-  const corner: GridPoint = rng() < 0.5 ? { c: b.c, r: a.r } : { c: a.c, r: b.r };
+  const across: GridPoint = { c: b.c, r: a.r };
+  const down: GridPoint = { c: a.c, r: b.r };
+  const flip = rng() < 0.5;
+  const acrossCost = cornerCost(dungeon, rooms, a, across, b);
+  const downCost = cornerCost(dungeon, rooms, a, down, b);
+  const corner = acrossCost === downCost ? (flip ? across : down) : acrossCost < downCost ? across : down;
   carveLine(dungeon, a, corner);
   carveLine(dungeon, corner, b);
 }
@@ -193,6 +253,7 @@ function findRoot(parent: number[], i: number): number {
   return cur;
 }
 
+/** Spanning tree of the nearest links, so the map has no loops; side rooms dead-end. */
 function connectRooms(
   dungeon: Pick<Dungeon, "blocked" | "kind" | "cols" | "rows">,
   rooms: DungeonRect[],
@@ -211,22 +272,12 @@ function connectRooms(
     }
   }
   edges.sort((x, y) => x.d - y.d);
-  const extra: typeof edges = [];
   for (const edge of edges) {
     const ra = findRoot(parent, edge.a);
     const rb = findRoot(parent, edge.b);
-    if (ra === rb) {
-      extra.push(edge);
-      continue;
-    }
+    if (ra === rb) continue;
     parent[rb] = ra;
-    carveL(dungeon, centers[edge.a], centers[edge.b], rng);
-  }
-  const extraCount = Math.min(extra.length, randInt(rng, 1, 3));
-  for (let i = 0; i < extraCount; i++) {
-    const pick = extra.splice(randInt(rng, 0, extra.length - 1), 1)[0];
-    if (!pick) break;
-    carveL(dungeon, centers[pick.a], centers[pick.b], rng);
+    carveL(dungeon, rooms, centers[edge.a], centers[edge.b], rng);
   }
   let gate = others.find((room) => room !== entry) ?? entry;
   let best = Infinity;
@@ -391,7 +442,16 @@ function finishDungeon(
     path: [start, ...steps],
   };
   if (tilesTouchingGoal(built, goal).length > 2) return null;
+  if (goalApproach(built) < MAP_SPECS[mapSize].approach) return null;
   return built;
+}
+
+/** Corridor tiles the route walks between the last room and the goal room. */
+function goalApproach(dungeon: Dungeon): number {
+  const at = dungeon.path.findIndex((p) => insideRoom(dungeon.goal, p.c, p.r));
+  let tiles = 0;
+  for (let i = at - 1; i >= 0 && !roomContaining(dungeon, dungeon.path[i].c, dungeon.path[i].r); i--) tiles++;
+  return tiles;
 }
 
 /** Maps a dungeon built with the goal on the east edge onto `side`. North/south transpose it into a portrait grid. */
@@ -468,8 +528,8 @@ function fallbackDungeon(seed: number, mapSize: MapSize): Dungeon {
   ];
   const draft = { blocked, kind, cols, rows };
   for (const room of rooms) carveRoom(draft, room);
-  carveL(draft, roomCenter(rooms[0]), roomCenter(rooms[1]), () => 0.2);
-  carveL(draft, roomCenter(rooms[1]), roomCenter(rooms[2]), () => 0.8);
+  carveL(draft, rooms, roomCenter(rooms[0]), roomCenter(rooms[1]), () => 0.2);
+  carveL(draft, rooms, roomCenter(rooms[1]), roomCenter(rooms[2]), () => 0.8);
   carveGate(draft, roomCenter(rooms[2]), rooms[3]);
   const built = finishDungeon(seed, mapSize, blocked, kind, rooms, rooms[0], rooms[3]);
   if (!built) throw new Error("fallback dungeon must be walkable");

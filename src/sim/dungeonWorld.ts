@@ -23,12 +23,15 @@ export type EnemyGroup = {
   id: string;
   anchor: GridPoint;
   unitIds: string[];
+  /** Small corridor guard; left out of the HUD pack and enemy counts. */
+  corridor: boolean;
 };
 
 export type DungeonEncounterGroup = {
   id: string;
   anchor: GridPoint;
   positions: GridPoint[];
+  corridor: boolean;
 };
 
 export type DungeonEncounter = {
@@ -56,12 +59,25 @@ const GENERATED_PACKS: Record<ContentSize, readonly number[]> = {
   medium: [4, 3, 3],
   big: [4, 4, 4, 3],
 };
+const CORRIDOR_PACKS: Record<MapSize, number> = { small: 1, medium: 2, big: 3 };
+const CORRIDOR_PACK_SIZE = 2;
 const PARTY_SPAWN_GUARD = ENEMY_ENGAGE_RANGE + TILE * 2;
+
+function shuffleInPlace<T>(items: T[], rng: () => number): T[] {
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const temp = items[i];
+    items[i] = items[j];
+    items[j] = temp;
+  }
+  return items;
+}
 
 /**
  * Dungeon sandbox: walls from {@link generateDungeon}, with several seeded enemy packs in each
- * ordinary room except the entry and goal rooms. Packs sit farther apart than social range, across
- * rooms too, and outside engage range of the party spawn.
+ * ordinary room except the entry and goal rooms, off the room's wall row, plus a few 2-enemy packs in
+ * corridors. Packs sit farther apart than social range, across rooms too, and outside engage range of
+ * the party spawn.
  * No friendlies — packs idle in place.
  */
 export class DungeonWorld {
@@ -114,7 +130,7 @@ export class DungeonWorld {
     if (!from) return null;
     const spots = this.pickTiles(from, this.packSize);
     if (spots.length === 0) return null;
-    return this.addGroup(from, spots);
+    return this.addGroup(from, spots, false);
   }
 
   removeGroupAt(x: number, y: number): boolean {
@@ -142,12 +158,15 @@ export class DungeonWorld {
           .map((id) => units.get(id))
           .filter((unit): unit is SimUnit => !!unit && unit.stats.health > 0)
           .map((unit) => worldToGrid(unit.x, unit.y, TILE, this.dungeon.cols, this.dungeon.rows)),
+        corridor: group.corridor,
       })),
     };
   }
 
   hud(): DungeonHudState {
     const sizes = countRoomsBySize(this.dungeon.rooms);
+    const counted = this.groups.filter((group) => !group.corridor);
+    const countedIds = new Set(counted.flatMap((group) => group.unitIds));
     return {
       seed: this.dungeon.seed,
       mapSize: this.dungeon.mapSize,
@@ -158,8 +177,8 @@ export class DungeonWorld {
       bigRooms: sizes.big,
       pathLength: this.dungeon.path.length,
       packSize: this.packSize,
-      groupCount: this.groups.length,
-      enemyAlive: living(this.units, "enemy").length,
+      groupCount: counted.length,
+      enemyAlive: living(this.units, "enemy").filter((unit) => countedIds.has(unit.id)).length,
     };
   }
 
@@ -192,8 +211,48 @@ export class DungeonWorld {
       if (room.size === "boss" || room.size === "exit" || room === this.dungeon.entry) continue;
       for (const packSize of GENERATED_PACKS[room.size]) {
         const spots = this.pickRoomTiles(room, packSize, rng);
-        if (spots.length === packSize) this.addGroup(spots[0], spots);
+        if (spots.length === packSize) this.addGroup(spots[0], spots, false);
       }
+    }
+    this.placeCorridorPacks(rng);
+  }
+
+  /** Route corridors first, then side corridors, with the same spacing and spawn guard as room packs. */
+  private placeCorridorPacks(rng: () => number): void {
+    const dungeon = this.dungeon;
+    const isCorridor = (c: number, r: number) =>
+      isFloorTile(dungeon, c, r) && dungeon.kind[r][c] === "corridor" && !isReservedTile(dungeon, c, r);
+    const onRoute = new Set(dungeon.path.map((p) => tileKey(p.c, p.r)));
+    const route: GridPoint[] = [];
+    const side: GridPoint[] = [];
+    for (let r = 0; r < dungeon.rows; r++) {
+      for (let c = 0; c < dungeon.cols; c++) {
+        if (isCorridor(c, r)) (onRoute.has(tileKey(c, r)) ? route : side).push({ c, r });
+      }
+    }
+
+    let placed = 0;
+    for (const anchor of [...shuffleInPlace(route, rng), ...shuffleInPlace(side, rng)]) {
+      if (placed >= CORRIDOR_PACKS[dungeon.mapSize]) return;
+      const occupied = this.occupiedTiles();
+      const blocksPack = (tile: GridPoint) => this.tooCloseToForeign(tile, occupied) || this.nearPartySpawn(tile);
+      if (blocksPack(anchor)) continue;
+      const taken = new Set<string>();
+      const spots: GridPoint[] = [];
+      const reserved = (c: number, r: number) =>
+        !isCorridor(c, r) ||
+        Math.max(Math.abs(c - anchor.c), Math.abs(r - anchor.r)) > 1 ||
+        taken.has(tileKey(c, r)) ||
+        blocksPack({ c, r });
+      for (let i = 0; i < CORRIDOR_PACK_SIZE; i++) {
+        const spot = nearestOpen(dungeon.blocked, anchor, reserved);
+        if (!spot) break;
+        taken.add(tileKey(spot.c, spot.r));
+        spots.push(spot);
+      }
+      if (spots.length < CORRIDOR_PACK_SIZE) continue;
+      this.addGroup(spots[0], spots, true);
+      placed += 1;
     }
   }
 
@@ -202,7 +261,7 @@ export class DungeonWorld {
       const positions = group.positions.map((position) => ({ ...position }));
       if (positions.length === 0) continue;
       const unitIds = positions.map((position) => this.addEnemy(position));
-      this.groups.push({ id: group.id, anchor: { ...group.anchor }, unitIds });
+      this.groups.push({ id: group.id, anchor: { ...group.anchor }, unitIds, corridor: group.corridor });
     }
     this.nextGroup = groups.reduce((next, group) => {
       const number = Number(group.id.replace("pack-", ""));
@@ -210,20 +269,16 @@ export class DungeonWorld {
     }, 1);
   }
 
+  /** Keeps every enemy off the room's wall row so bodies and bars never draw over a wall. */
   private pickRoomTiles(room: DungeonRect, count: number, rng: () => number): GridPoint[] {
     const candidates: GridPoint[] = [];
-    for (let r = room.r; r < room.r + room.h; r++) {
-      for (let c = room.c; c < room.c + room.w; c++) {
+    for (let r = room.r + 1; r < room.r + room.h - 1; r++) {
+      for (let c = room.c + 1; c < room.c + room.w - 1; c++) {
         if (!isFloorTile(this.dungeon, c, r) || isReservedTile(this.dungeon, c, r)) continue;
         candidates.push({ c, r });
       }
     }
-    for (let i = candidates.length - 1; i > 0; i--) {
-      const j = Math.floor(rng() * (i + 1));
-      const temp = candidates[i];
-      candidates[i] = candidates[j];
-      candidates[j] = temp;
-    }
+    shuffleInPlace(candidates, rng);
 
     const occupied = this.occupiedTiles();
     const foreign = occupied.filter(
@@ -240,10 +295,10 @@ export class DungeonWorld {
       const taken = new Set(foreign.map((tile) => tileKey(tile.c, tile.r)));
       const spots: GridPoint[] = [];
       const reserved = (c: number, r: number) =>
-        c < room.c ||
-        c >= room.c + room.w ||
-        r < room.r ||
-        r >= room.r + room.h ||
+        c <= room.c ||
+        c >= room.c + room.w - 1 ||
+        r <= room.r ||
+        r >= room.r + room.h - 1 ||
         Math.max(Math.abs(c - anchor.c), Math.abs(r - anchor.r)) > clusterReach ||
         taken.has(tileKey(c, r)) ||
         isReservedTile(this.dungeon, c, r) ||
@@ -295,12 +350,13 @@ export class DungeonWorld {
     return Math.hypot(here.x - start.x, here.y - start.y) <= PARTY_SPAWN_GUARD;
   }
 
-  private addGroup(anchor: GridPoint, spots: GridPoint[]): EnemyGroup {
+  private addGroup(anchor: GridPoint, spots: GridPoint[], corridor: boolean): EnemyGroup {
     const unitIds = spots.map((spot) => this.addEnemy(spot));
     const group: EnemyGroup = {
       id: `pack-${this.nextGroup++}`,
       anchor,
       unitIds,
+      corridor,
     };
     this.groups.push(group);
     return group;
