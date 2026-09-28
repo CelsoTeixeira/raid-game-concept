@@ -1,12 +1,13 @@
 import Phaser from "phaser";
 import { appearanceFrames, type SpriteFrame } from "../appearance";
 import { TILE } from "../sim/balance";
-import { DUNGEON_COLS, DUNGEON_ROWS, roomCenter, roomContaining, type RoomSize } from "../sim/dungeon";
+import { roomCenter, roomContaining, type RoomSize } from "../sim/dungeon";
 import { DungeonWorld, type DungeonEncounter } from "../sim/dungeonWorld";
 import { gridCenter } from "../sim/grid";
 import type { SimUnit } from "../sim/unit";
 import { setDungeonCommands } from "./dungeonCommands";
 import { setDungeonHudState } from "./dungeonHudStore";
+import { drawPortal } from "./portal";
 
 const CHARACTER_TEXTURE_KEY = "character-sheet";
 const CHARACTER_SHEET_URL = new URL("../assets/roguelikeChar_transparent.png", import.meta.url).href;
@@ -56,11 +57,7 @@ export class DungeonScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(0x12141a);
     this.cameras.main.roundPixels = true;
-    const worldW = DUNGEON_COLS * TILE;
-    const worldH = DUNGEON_ROWS * TILE;
-    this.cameras.main.setBounds(0, 0, worldW, worldH);
-    this.cameras.main.setZoom(Math.min(this.scale.width / worldW, this.scale.height / worldH));
-    this.cameras.main.centerOn(worldW / 2, worldH / 2);
+    this.fitCamera();
     this.mapGfx = this.add.graphics().setDepth(0);
     this.groupGfx = this.add.graphics().setDepth(3);
     this.previewGfx = this.add.graphics().setDepth(12);
@@ -86,6 +83,7 @@ export class DungeonScene extends Phaser.Scene {
       regenerate: () => {
         this.world.regenerate();
         this.destroyViews();
+        this.fitCamera();
         this.redrawMap();
         this.drawGroups();
       },
@@ -114,6 +112,15 @@ export class DungeonScene extends Phaser.Scene {
     setDungeonHudState(this.world.hud());
   }
 
+  /** North/south dungeons are portrait, so the fit changes on regenerate. */
+  private fitCamera(): void {
+    const worldW = this.world.dungeon.cols * TILE;
+    const worldH = this.world.dungeon.rows * TILE;
+    this.cameras.main.setBounds(0, 0, worldW, worldH);
+    this.cameras.main.setZoom(Math.min(this.scale.width / worldW, this.scale.height / worldH));
+    this.cameras.main.centerOn(worldW / 2, worldH / 2);
+  }
+
   private redrawMap(): void {
     this.mapGfx.clear();
     for (const t of this.marks) t.destroy();
@@ -121,13 +128,13 @@ export class DungeonScene extends Phaser.Scene {
     const dungeon = this.world.dungeon;
     const path = new Set(dungeon.path.map((p) => `${p.c},${p.r}`));
     this.mapGfx.fillStyle(0x12141a, 1);
-    this.mapGfx.fillRect(0, 0, DUNGEON_COLS * TILE, DUNGEON_ROWS * TILE);
+    this.mapGfx.fillRect(0, 0, dungeon.cols * TILE, dungeon.rows * TILE);
     this.mapGfx.lineStyle(1, 0x1a2030, 0.55);
-    for (let c = 0; c <= DUNGEON_COLS; c++) {
-      this.mapGfx.lineBetween(c * TILE, 0, c * TILE, DUNGEON_ROWS * TILE);
+    for (let c = 0; c <= dungeon.cols; c++) {
+      this.mapGfx.lineBetween(c * TILE, 0, c * TILE, dungeon.rows * TILE);
     }
-    for (let r = 0; r <= DUNGEON_ROWS; r++) {
-      this.mapGfx.lineBetween(0, r * TILE, DUNGEON_COLS * TILE, r * TILE);
+    for (let r = 0; r <= dungeon.rows; r++) {
+      this.mapGfx.lineBetween(0, r * TILE, dungeon.cols * TILE, r * TILE);
     }
     for (let r = 0; r < dungeon.rows; r++) {
       for (let c = 0; c < dungeon.cols; c++) {
@@ -146,11 +153,10 @@ export class DungeonScene extends Phaser.Scene {
     const boss = dungeon.boss;
     this.mapGfx.lineStyle(2, 0xd97706, 0.95);
     this.mapGfx.strokeRect(boss.c * TILE + 1, boss.r * TILE + 1, boss.w * TILE - 2, boss.h * TILE - 2);
-    this.paintTile(dungeon.start, 0x166534);
     this.paintTile(dungeon.end, 0xa16207);
+    drawPortal(this.mapGfx, dungeon.start);
     const bossLabel = gridCenter(roomCenter(boss), TILE);
     this.marks.push(
-      this.mark(dungeon.start, "S", "#86efac"),
       this.add
         .text(bossLabel.x, bossLabel.y, "BOSS", { fontSize: "12px", color: "#fbbf24", fontStyle: "bold" })
         .setOrigin(0.5)
@@ -161,14 +167,6 @@ export class DungeonScene extends Phaser.Scene {
   private paintTile(p: { c: number; r: number }, color: number): void {
     this.mapGfx.fillStyle(color, 1);
     this.mapGfx.fillRect(p.c * TILE, p.r * TILE, TILE, TILE);
-  }
-
-  private mark(p: { c: number; r: number }, text: string, color: string): Phaser.GameObjects.Text {
-    const { x, y } = gridCenter(p, TILE);
-    return this.add
-      .text(x, y, text, { fontSize: "14px", color, fontStyle: "bold" })
-      .setOrigin(0.5)
-      .setDepth(2);
   }
 
   private drawPreview(): void {

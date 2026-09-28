@@ -8,7 +8,6 @@ import {
   isReservedTile,
   mulberry32,
   randomDungeonSeed,
-  roomContaining,
   type DungeonRect,
   type Dungeon,
 } from "./dungeon";
@@ -175,9 +174,8 @@ export class DungeonWorld {
 
   private populateGeneratedPacks(): void {
     const rng = mulberry32(this.dungeon.seed);
-    const entryRoom = roomContaining(this.dungeon, this.dungeon.start.c, this.dungeon.start.r);
     for (const room of this.dungeon.rooms) {
-      if (room.size === "boss" || room === entryRoom) continue;
+      if (room.size === "boss" || room === this.dungeon.entry) continue;
       for (const packSize of GENERATED_PACKS[room.size]) {
         const spots = this.pickRoomTiles(room, packSize, rng);
         if (spots.length === packSize) this.addGroup(spots[0], spots);
@@ -276,7 +274,7 @@ export class DungeonWorld {
     return false;
   }
 
-  /** Party slots are the entry tiles nearest `start`, so a padded radius covers them. */
+  /** Party slots are the entry tiles nearest the `start` portal, so a padded radius covers them. */
   private nearPartySpawn(tile: GridPoint): boolean {
     const here = gridCenter(tile, TILE);
     const start = gridCenter(this.dungeon.start, TILE);

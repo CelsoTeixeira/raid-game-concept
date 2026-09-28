@@ -30,7 +30,7 @@ import { nearestOpen } from "./path";
 import { copyCombatStats, type Character } from "./character";
 import { DEFAULT_GROUP } from "./group";
 import { enemyStats, isRanged } from "./stats";
-import { roomContaining } from "./dungeon";
+import { isReservedTile } from "./dungeon";
 import type { DungeonEncounter } from "./dungeonWorld";
 import type { HudState, Side, UnitSnapshot } from "./types";
 import type { MoveAssign, SimUnit } from "./unit";
@@ -238,15 +238,14 @@ export class World {
   private entryRoomSlots(): GridPoint[] {
     if (!this.encounter) return [];
     const dungeon = this.encounter.dungeon;
-    const room = roomContaining(dungeon, dungeon.start.c, dungeon.start.r);
-    if (!room) return [];
+    const room = dungeon.entry;
     const occupied = new Set(
       this.encounter.groups.flatMap((group) => group.positions.map((position) => `${position.c},${position.r}`)),
     );
     const slots: GridPoint[] = [];
     for (let r = room.r; r < room.r + room.h; r++) {
       for (let c = room.c; c < room.c + room.w; c++) {
-        if (dungeon.blocked[r][c] || occupied.has(`${c},${r}`)) continue;
+        if (dungeon.blocked[r][c] || occupied.has(`${c},${r}`) || isReservedTile(dungeon, c, r)) continue;
         slots.push({ c, r });
       }
     }

@@ -10,6 +10,7 @@ import { isRanged } from "../sim/stats";
 import type { SimUnit } from "../sim/unit";
 import { World } from "../sim/world";
 import { setRaidCommands } from "./commands";
+import { drawPortal } from "./portal";
 import { HealFxLayer } from "./healFx";
 import { HitFxLayer } from "./hitFx";
 import { setHudState } from "./hudStore";
@@ -199,17 +200,9 @@ export class RaidScene extends Phaser.Scene {
     const boss = dungeon.boss;
     g.lineStyle(2, 0xd97706, 0.95);
     g.strokeRect(boss.c * TILE + 1, boss.r * TILE + 1, boss.w * TILE - 2, boss.h * TILE - 2);
-    this.paintTile(g, dungeon.start, 0x166534);
     this.paintTile(g, dungeon.end, 0xa16207);
+    drawPortal(g, dungeon.start);
     const bossLabel = gridCenter(roomCenter(boss), TILE);
-    this.add
-      .text(gridCenter(dungeon.start, TILE).x, gridCenter(dungeon.start, TILE).y, "S", {
-        fontSize: "14px",
-        color: "#86efac",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5)
-      .setDepth(2);
     this.add
       .text(bossLabel.x, bossLabel.y, "BOSS", {
         fontSize: "12px",
