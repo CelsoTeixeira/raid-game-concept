@@ -2,14 +2,20 @@ import Phaser from "phaser";
 import { TILE } from "../sim/balance";
 import { gridCenter, type GridPoint } from "../sim/grid";
 
-export function drawPortal(g: Phaser.GameObjects.Graphics, at: GridPoint): void {
+const PORTAL_COLORS = {
+  entry: { glow: 0x7c3aed, core: 0x1e1b4b, ring: 0xa78bfa, inner: 0xc4b5fd },
+  exit: { glow: 0x0d9488, core: 0x042f2e, ring: 0x2dd4bf, inner: 0x99f6e4 },
+};
+
+export function drawPortal(g: Phaser.GameObjects.Graphics, at: GridPoint, kind: keyof typeof PORTAL_COLORS): void {
   const { x, y } = gridCenter(at, TILE);
-  g.fillStyle(0x7c3aed, 0.25);
+  const color = PORTAL_COLORS[kind];
+  g.fillStyle(color.glow, 0.25);
   g.fillCircle(x, y, TILE * 0.95);
-  g.fillStyle(0x1e1b4b, 1);
+  g.fillStyle(color.core, 1);
   g.fillCircle(x, y, TILE * 0.6);
-  g.lineStyle(3, 0xa78bfa, 1);
+  g.lineStyle(3, color.ring, 1);
   g.strokeCircle(x, y, TILE * 0.6);
-  g.lineStyle(1, 0xc4b5fd, 0.8);
+  g.lineStyle(1, color.inner, 0.8);
   g.strokeCircle(x, y, TILE * 0.35);
 }

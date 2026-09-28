@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ENEMY_SOCIAL_RANGE, TILE } from "./balance";
-import { countBossEntrances, generateDungeon, roomContaining } from "./dungeon";
+import { countGoalEntrances, generateDungeon, roomContaining } from "./dungeon";
 import { DungeonWorld } from "./dungeonWorld";
 import { gridCenter } from "./grid";
 import { findPath } from "./path";
@@ -42,13 +42,13 @@ describe("dungeon generation", () => {
       expect(sizes.has("small")).toBe(true);
       expect(sizes.has("medium")).toBe(true);
       expect(sizes.has("big")).toBe(true);
-      expect(dungeon.boss.size).toBe("boss");
+      expect(dungeon.goal.size).toBe("boss");
       const east = Math.max(...dungeon.rooms.map((room) => room.c));
-      expect(dungeon.boss.c).toBe(east);
-      expect(dungeon.end.c).toBeGreaterThanOrEqual(dungeon.boss.c);
-      expect(dungeon.end.c).toBeLessThan(dungeon.boss.c + dungeon.boss.w);
-      expect(dungeon.end.r).toBeGreaterThanOrEqual(dungeon.boss.r);
-      expect(dungeon.end.r).toBeLessThan(dungeon.boss.r + dungeon.boss.h);
+      expect(dungeon.goal.c).toBe(east);
+      expect(dungeon.end.c).toBeGreaterThanOrEqual(dungeon.goal.c);
+      expect(dungeon.end.c).toBeLessThan(dungeon.goal.c + dungeon.goal.w);
+      expect(dungeon.end.r).toBeGreaterThanOrEqual(dungeon.goal.r);
+      expect(dungeon.end.r).toBeLessThan(dungeon.goal.r + dungeon.goal.h);
       for (const room of dungeon.rooms) {
         if (room.size === "small") {
           expect(room.w).toBeGreaterThanOrEqual(8);
@@ -69,7 +69,7 @@ describe("dungeon generation", () => {
   it("links the boss room to a single entrance", () => {
     for (let i = 0; i < 16; i++) {
       const dungeon = generateDungeon(i * 4099 + 3);
-      expect(countBossEntrances(dungeon)).toBe(1);
+      expect(countGoalEntrances(dungeon)).toBe(1);
     }
   });
 });

@@ -29,6 +29,7 @@ const ROOM_FILL: Record<RoomSize, { floor: number; path: number }> = {
   medium: { floor: 0x2a3344, path: 0x3f5344 },
   big: { floor: 0x364155, path: 0x455a4c },
   boss: { floor: 0x4a2730, path: 0x5c3d32 },
+  exit: { floor: 0x16333a, path: 0x1f4a45 },
 };
 
 type UnitView = {
@@ -197,12 +198,16 @@ export class RaidScene extends Phaser.Scene {
         g.fillRect(c * TILE, r * TILE, TILE, TILE);
       }
     }
-    const boss = dungeon.boss;
+    drawPortal(g, dungeon.start, "entry");
+    const goal = dungeon.goal;
+    if (goal.size !== "boss") {
+      drawPortal(g, dungeon.end, "exit");
+      return;
+    }
     g.lineStyle(2, 0xd97706, 0.95);
-    g.strokeRect(boss.c * TILE + 1, boss.r * TILE + 1, boss.w * TILE - 2, boss.h * TILE - 2);
+    g.strokeRect(goal.c * TILE + 1, goal.r * TILE + 1, goal.w * TILE - 2, goal.h * TILE - 2);
     this.paintTile(g, dungeon.end, 0xa16207);
-    drawPortal(g, dungeon.start);
-    const bossLabel = gridCenter(roomCenter(boss), TILE);
+    const bossLabel = gridCenter(roomCenter(goal), TILE);
     this.add
       .text(bossLabel.x, bossLabel.y, "BOSS", {
         fontSize: "12px",

@@ -2,6 +2,8 @@ import type { DungeonHudState } from "../sim/dungeonWorld";
 
 const empty: DungeonHudState = {
   seed: 0,
+  mapSize: "medium",
+  goal: "exit",
   rooms: 0,
   smallRooms: 0,
   mediumRooms: 0,

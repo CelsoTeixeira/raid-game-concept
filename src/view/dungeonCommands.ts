@@ -1,5 +1,8 @@
+import type { MapSize } from "../sim/dungeon";
+
 export type DungeonCommands = {
   regenerate: () => void;
+  setMapSize: (size: MapSize) => void;
   clearGroups: () => void;
   setPackSize: (n: number) => void;
   startGame: () => void;

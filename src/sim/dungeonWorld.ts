@@ -8,8 +8,11 @@ import {
   isReservedTile,
   mulberry32,
   randomDungeonSeed,
+  type ContentSize,
   type DungeonRect,
   type Dungeon,
+  type GoalKind,
+  type MapSize,
 } from "./dungeon";
 import { gridCenter, tileKey, worldToGrid, type GridPoint } from "./grid";
 import { nearestOpen } from "./path";
@@ -35,6 +38,8 @@ export type DungeonEncounter = {
 
 export type DungeonHudState = {
   seed: number;
+  mapSize: MapSize;
+  goal: GoalKind;
   rooms: number;
   smallRooms: number;
   mediumRooms: number;
@@ -46,7 +51,7 @@ export type DungeonHudState = {
 };
 
 const PACK_SIZES = [2, 3, 4, 5] as const;
-const GENERATED_PACKS: Record<Exclude<DungeonRect["size"], "boss">, readonly number[]> = {
+const GENERATED_PACKS: Record<ContentSize, readonly number[]> = {
   small: [3, 2],
   medium: [4, 3, 3],
   big: [4, 4, 4, 3],
@@ -55,7 +60,7 @@ const PARTY_SPAWN_GUARD = ENEMY_ENGAGE_RANGE + TILE * 2;
 
 /**
  * Dungeon sandbox: walls from {@link generateDungeon}, with several seeded enemy packs in each
- * ordinary room except the entry and boss rooms. Packs sit farther apart than social range, across
+ * ordinary room except the entry and goal rooms. Packs sit farther apart than social range, across
  * rooms too, and outside engage range of the party spawn.
  * No friendlies — packs idle in place.
  */
@@ -64,17 +69,19 @@ export class DungeonWorld {
   units: SimUnit[] = [];
   groups: EnemyGroup[] = [];
   packSize = 3;
+  mapSize: MapSize = "medium";
   private nextUnit = 1;
   private nextGroup = 1;
 
   constructor(encounter?: DungeonEncounter | number) {
     if (typeof encounter === "object") {
       this.dungeon = encounter.dungeon;
+      this.mapSize = encounter.dungeon.mapSize;
       this.restoreGroups(encounter.groups);
       return;
     }
 
-    this.dungeon = generateDungeon(encounter ?? randomDungeonSeed());
+    this.dungeon = generateDungeon(encounter ?? randomDungeonSeed(), this.mapSize);
     this.populateGeneratedPacks();
   }
 
@@ -83,8 +90,13 @@ export class DungeonWorld {
     this.groups = [];
     this.nextUnit = 1;
     this.nextGroup = 1;
-    this.dungeon = generateDungeon(seed ?? randomDungeonSeed());
+    this.dungeon = generateDungeon(seed ?? randomDungeonSeed(), this.mapSize);
     this.populateGeneratedPacks();
+  }
+
+  setMapSize(size: MapSize): void {
+    this.mapSize = size;
+    this.regenerate();
   }
 
   setPackSize(size: number): void {
@@ -138,6 +150,8 @@ export class DungeonWorld {
     const sizes = countRoomsBySize(this.dungeon.rooms);
     return {
       seed: this.dungeon.seed,
+      mapSize: this.dungeon.mapSize,
+      goal: this.dungeon.goal.size === "boss" ? "boss" : "exit",
       rooms: this.dungeon.rooms.length,
       smallRooms: sizes.small,
       mediumRooms: sizes.medium,
@@ -175,7 +189,7 @@ export class DungeonWorld {
   private populateGeneratedPacks(): void {
     const rng = mulberry32(this.dungeon.seed);
     for (const room of this.dungeon.rooms) {
-      if (room.size === "boss" || room === this.dungeon.entry) continue;
+      if (room.size === "boss" || room.size === "exit" || room === this.dungeon.entry) continue;
       for (const packSize of GENERATED_PACKS[room.size]) {
         const spots = this.pickRoomTiles(room, packSize, rng);
         if (spots.length === packSize) this.addGroup(spots[0], spots);

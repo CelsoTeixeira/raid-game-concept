@@ -1,22 +1,24 @@
 import { CARDINALS, type GridPoint } from "./grid";
 import { findPath, inBounds } from "./path";
 
-export const DUNGEON_COLS = 64;
-export const DUNGEON_ROWS = 40;
-
 export type TileKind = "wall" | "room" | "corridor";
-export type RoomSize = "small" | "medium" | "big" | "boss";
+export type MapSize = "small" | "medium" | "big";
+export type GoalKind = "boss" | "exit";
+export type ContentSize = "small" | "medium" | "big";
+export type RoomSize = ContentSize | GoalKind;
 export type DungeonRect = { c: number; r: number; w: number; h: number; size: RoomSize };
-export type BossSide = "east" | "west" | "south" | "north";
+export type GoalSide = "east" | "west" | "south" | "north";
 
 export type Dungeon = {
   seed: number;
+  mapSize: MapSize;
   cols: number;
   rows: number;
   blocked: boolean[][];
   kind: TileKind[][];
   rooms: DungeonRect[];
-  boss: DungeonRect;
+  /** Boss room on big maps, exit room with a portal at `end` otherwise. No packs. */
+  goal: DungeonRect;
   /** Small room with no packs; `start` is its center, where the portal sits. */
   entry: DungeonRect;
   start: GridPoint;
@@ -27,15 +29,44 @@ export type Dungeon = {
 type Rng = () => number;
 
 const ATTEMPTS = 48;
-const BOSS_BAND = 0.58;
+const GOAL_BAND = 0.58;
 const ENTRY_BAND = 0.3;
-const BOSS_SIDES: BossSide[] = ["east", "west", "south", "north"];
+const GOAL_SIDES: GoalSide[] = ["east", "west", "south", "north"];
 
 const ROOM_SPECS: Record<RoomSize, { minW: number; maxW: number; minH: number; maxH: number }> = {
   small: { minW: 8, maxW: 9, minH: 8, maxH: 9 },
   medium: { minW: 11, maxW: 13, minH: 9, maxH: 11 },
   big: { minW: 13, maxW: 16, minH: 11, maxH: 13 },
   boss: { minW: 14, maxW: 16, minH: 12, maxH: 14 },
+  exit: { minW: 8, maxW: 9, minH: 8, maxH: 9 },
+};
+
+/** Grid is built with the goal on the east edge (`cols` along the route); north/south maps come out portrait. */
+const MAP_SPECS: Record<
+  MapSize,
+  { cols: number; rows: number; goal: GoalKind; bag: ContentSize[]; extras: Array<{ size: ContentSize; chance: number }> }
+> = {
+  small: { cols: 48, rows: 32, goal: "exit", bag: ["small", "small", "medium"], extras: [{ size: "medium", chance: 0.5 }] },
+  medium: {
+    cols: 64,
+    rows: 40,
+    goal: "exit",
+    bag: ["small", "small", "medium", "medium", "big"],
+    extras: [
+      { size: "small", chance: 0.55 },
+      { size: "big", chance: 0.45 },
+    ],
+  },
+  big: {
+    cols: 88,
+    rows: 56,
+    goal: "boss",
+    bag: ["small", "small", "medium", "medium", "medium", "big", "big"],
+    extras: [
+      { size: "medium", chance: 0.55 },
+      { size: "big", chance: 0.45 },
+    ],
+  },
 };
 
 /** Deterministic 0..1 generator so a seed can be replayed from the HUD. */
@@ -141,13 +172,13 @@ function carveL(
   carveLine(dungeon, corner, b);
 }
 
-/** Vertical leg first so the 2-wide corridor meets the boss west face head-on as a 2-tile door. */
+/** Vertical leg first so the 2-wide corridor meets the goal west face head-on as a 2-tile door. */
 function carveGate(
   dungeon: Pick<Dungeon, "blocked" | "kind" | "cols" | "rows">,
   from: GridPoint,
-  boss: DungeonRect,
+  goal: DungeonRect,
 ): void {
-  const target = roomCenter(boss);
+  const target = roomCenter(goal);
   const corner: GridPoint = { c: from.c, r: target.r };
   carveLine(dungeon, from, corner);
   carveLine(dungeon, corner, target);
@@ -166,10 +197,10 @@ function connectRooms(
   dungeon: Pick<Dungeon, "blocked" | "kind" | "cols" | "rows">,
   rooms: DungeonRect[],
   entry: DungeonRect,
+  goal: DungeonRect,
   rng: Rng,
 ): void {
-  const others = rooms.filter((room) => room.size !== "boss");
-  const boss = rooms.find((room) => room.size === "boss");
+  const others = rooms.filter((room) => room !== goal);
   const centers = others.map(roomCenter);
   const parent = others.map((_, i) => i);
   const edges: Array<{ a: number; b: number; d: number }> = [];
@@ -197,10 +228,9 @@ function connectRooms(
     if (!pick) break;
     carveL(dungeon, centers[pick.a], centers[pick.b], rng);
   }
-  if (!boss || others.length === 0) return;
   let gate = others.find((room) => room !== entry) ?? entry;
   let best = Infinity;
-  const target = roomCenter(boss);
+  const target = roomCenter(goal);
   for (const room of others) {
     if (room === entry) continue;
     const p = roomCenter(room);
@@ -210,23 +240,23 @@ function connectRooms(
       gate = room;
     }
   }
-  carveGate(dungeon, roomCenter(gate), boss);
+  carveGate(dungeon, roomCenter(gate), goal);
 }
 
-function tilesTouchingBoss(
+function tilesTouchingGoal(
   dungeon: Pick<Dungeon, "blocked" | "cols" | "rows">,
-  boss: DungeonRect,
+  goal: DungeonRect,
 ): GridPoint[] {
   const seen = new Set<string>();
   const out: GridPoint[] = [];
-  for (let r = boss.r; r < boss.r + boss.h; r++) {
-    for (let c = boss.c; c < boss.c + boss.w; c++) {
+  for (let r = goal.r; r < goal.r + goal.h; r++) {
+    for (let c = goal.c; c < goal.c + goal.w; c++) {
       if (dungeon.blocked[r][c]) continue;
       for (const [dc, dr] of CARDINALS) {
         const nc = c + dc;
         const nr = r + dr;
         if (!inBounds(nc, nr, dungeon.cols, dungeon.rows)) continue;
-        if (insideRoom(boss, nc, nr) || dungeon.blocked[nr][nc]) continue;
+        if (insideRoom(goal, nc, nr) || dungeon.blocked[nr][nc]) continue;
         const k = `${nc},${nr}`;
         if (seen.has(k)) continue;
         seen.add(k);
@@ -237,9 +267,9 @@ function tilesTouchingBoss(
   return out;
 }
 
-/** Walkable tiles just outside the boss, grouped into doorways. */
-export function countBossEntrances(dungeon: Dungeon): number {
-  const touches = tilesTouchingBoss(dungeon, dungeon.boss);
+/** Walkable tiles just outside the goal room, grouped into doorways. */
+export function countGoalEntrances(dungeon: Dungeon): number {
+  const touches = tilesTouchingGoal(dungeon, dungeon.goal);
   const keys = new Set(touches.map((p) => `${p.c},${p.r}`));
   const seen = new Set<string>();
   let groups = 0;
@@ -302,54 +332,70 @@ function tryPlace(
   return null;
 }
 
-function placeRooms(rng: Rng, cols: number, rows: number): { rooms: DungeonRect[]; entry: DungeonRect } | null {
+function placeRooms(
+  rng: Rng,
+  mapSize: MapSize,
+): { rooms: DungeonRect[]; entry: DungeonRect; goal: DungeonRect } | null {
+  const { cols, rows, goal: goalKind, bag: base, extras } = MAP_SPECS[mapSize];
   const rooms: DungeonRect[] = [];
-  const boss = tryPlace(rng, "boss", cols, rows, rooms, Math.floor(cols * BOSS_BAND), cols - 1);
-  if (!boss) return null;
-  rooms.push(boss);
+  const goal = tryPlace(rng, goalKind, cols, rows, rooms, Math.floor(cols * GOAL_BAND), cols - 1);
+  if (!goal) return null;
+  rooms.push(goal);
   const entry = tryPlace(rng, "small", cols, rows, rooms, 1, Math.floor(cols * ENTRY_BAND));
   if (!entry) return null;
   rooms.push(entry);
 
-  const bag: RoomSize[] = ["small", "small", "medium", "medium", "big"];
-  if (rng() < 0.55) bag.push("small");
-  if (rng() < 0.45) bag.push("big");
+  const bag = [...base];
+  for (const extra of extras) if (rng() < extra.chance) bag.push(extra.size);
 
   for (const size of shuffle(rng, bag)) {
-    const next = tryPlace(rng, size, cols, rows, rooms, 1, boss.c - 1);
+    const next = tryPlace(rng, size, cols, rows, rooms, 1, goal.c - 1);
     if (next) rooms.push(next);
   }
 
-  const has = (size: RoomSize) => rooms.some((room) => room !== entry && room.size === size);
-  if (!has("small") || !has("medium") || !has("big")) return null;
-  return { rooms, entry };
+  const content = rooms.filter((room) => room !== goal && room !== entry);
+  if (content.length < base.length) return null;
+  if (!base.every((size) => content.some((room) => room.size === size))) return null;
+  return { rooms, entry, goal };
 }
 
 function finishDungeon(
   seed: number,
-  cols: number,
-  rows: number,
+  mapSize: MapSize,
   blocked: boolean[][],
   kind: TileKind[][],
   rooms: DungeonRect[],
   entry: DungeonRect,
+  goal: DungeonRect,
 ): Dungeon | null {
-  const boss = rooms.find((room) => room.size === "boss");
-  const others = rooms.filter((room) => room.size !== "boss");
-  if (!boss || others.length < 3) return null;
+  const { cols, rows } = MAP_SPECS[mapSize];
+  if (rooms.length < 4) return null;
   const start = roomCenter(entry);
-  const end = roomCenter(boss);
+  const end = roomCenter(goal);
   if (start.c === end.c && start.r === end.r) return null;
   if (blocked[start.r][start.c] || blocked[end.r][end.c]) return null;
   const steps = findPath(blocked, start, end);
   if (steps.length === 0) return null;
-  const built: Dungeon = { seed, cols, rows, blocked, kind, rooms, boss, entry, start, end, path: [start, ...steps] };
-  if (tilesTouchingBoss(built, boss).length > 2) return null;
+  const built: Dungeon = {
+    seed,
+    mapSize,
+    cols,
+    rows,
+    blocked,
+    kind,
+    rooms,
+    goal,
+    entry,
+    start,
+    end,
+    path: [start, ...steps],
+  };
+  if (tilesTouchingGoal(built, goal).length > 2) return null;
   return built;
 }
 
-/** Maps a dungeon built with the boss on the east edge onto `side`. North/south transpose it into a portrait grid. */
-function orient(d: Dungeon, side: BossSide): Dungeon {
+/** Maps a dungeon built with the goal on the east edge onto `side`. North/south transpose it into a portrait grid. */
+function orient(d: Dungeon, side: GoalSide): Dungeon {
   if (side === "east") return d;
   const along = d.cols;
   const point = (p: GridPoint): GridPoint => {
@@ -380,7 +426,7 @@ function orient(d: Dungeon, side: BossSide): Dungeon {
     blocked,
     kind,
     rooms,
-    boss: rooms[d.rooms.indexOf(d.boss)],
+    goal: rooms[d.rooms.indexOf(d.goal)],
     entry: rooms[d.rooms.indexOf(d.entry)],
     start: point(d.start),
     end: point(d.end),
@@ -388,50 +434,56 @@ function orient(d: Dungeon, side: BossSide): Dungeon {
   };
 }
 
-function tryGenerate(seed: number): Dungeon | null {
+function tryGenerate(seed: number, mapSize: MapSize): Dungeon | null {
   const rng = mulberry32(seed);
-  const side = BOSS_SIDES[Math.floor(rng() * BOSS_SIDES.length)];
-  const cols = DUNGEON_COLS;
-  const rows = DUNGEON_ROWS;
+  const side = GOAL_SIDES[Math.floor(rng() * GOAL_SIDES.length)];
+  const { cols, rows } = MAP_SPECS[mapSize];
   const { blocked, kind } = emptyGrid(cols, rows);
-  const placed = placeRooms(rng, cols, rows);
+  const placed = placeRooms(rng, mapSize);
   if (!placed) return null;
   const draft = { blocked, kind, cols, rows };
   for (const room of placed.rooms) carveRoom(draft, room);
-  connectRooms(draft, placed.rooms, placed.entry, rng);
-  const built = finishDungeon(seed, cols, rows, blocked, kind, placed.rooms, placed.entry);
+  connectRooms(draft, placed.rooms, placed.entry, placed.goal, rng);
+  const built = finishDungeon(seed, mapSize, blocked, kind, placed.rooms, placed.entry, placed.goal);
   return built && orient(built, side);
 }
 
-/** Entry, medium, big, then the boss on the east or west side. Always walkable if random placement fails. */
-function fallbackDungeon(seed: number): Dungeon {
-  const cols = DUNGEON_COLS;
-  const rows = DUNGEON_ROWS;
+/** Entry, medium, small, then the goal on the east or west side. Fits the smallest map; always walkable. */
+function fallbackDungeon(seed: number, mapSize: MapSize): Dungeon {
+  const { cols, rows, goal: goalKind } = MAP_SPECS[mapSize];
   const { blocked, kind } = emptyGrid(cols, rows);
+  const mid = Math.floor(rows / 2);
+  const goalSpec = ROOM_SPECS[goalKind];
   const rooms: DungeonRect[] = [
-    { c: 2, r: 16, w: 8, h: 8, size: "small" },
-    { c: 14, r: 8, w: 12, h: 10, size: "medium" },
-    { c: 30, r: 14, w: 14, h: 12, size: "big" },
-    { c: 47, r: 13, w: 15, h: 13, size: "boss" },
+    { c: 2, r: mid - 4, w: 8, h: 8, size: "small" },
+    { c: 12, r: mid - 8, w: 11, h: 9, size: "medium" },
+    { c: 25, r: mid - 2, w: 8, h: 8, size: "small" },
+    {
+      c: cols - 2 - goalSpec.minW,
+      r: mid - Math.floor(goalSpec.minH / 2),
+      w: goalSpec.minW,
+      h: goalSpec.minH,
+      size: goalKind,
+    },
   ];
   const draft = { blocked, kind, cols, rows };
   for (const room of rooms) carveRoom(draft, room);
   carveL(draft, roomCenter(rooms[0]), roomCenter(rooms[1]), () => 0.2);
   carveL(draft, roomCenter(rooms[1]), roomCenter(rooms[2]), () => 0.8);
   carveGate(draft, roomCenter(rooms[2]), rooms[3]);
-  const built = finishDungeon(seed, cols, rows, blocked, kind, rooms, rooms[0]);
+  const built = finishDungeon(seed, mapSize, blocked, kind, rooms, rooms[0], rooms[3]);
   if (!built) throw new Error("fallback dungeon must be walkable");
   return orient(built, seed & 1 ? "west" : "east");
 }
 
-/** Room-and-corridor map with the boss on a random side and a verified walk from the entry portal into it. */
-export function generateDungeon(seed = randomDungeonSeed()): Dungeon {
+/** Room-and-corridor map with the goal on a random side and a verified walk from the entry portal into it. */
+export function generateDungeon(seed = randomDungeonSeed(), mapSize: MapSize = "medium"): Dungeon {
   const base = seed >>> 0;
   for (let i = 0; i < ATTEMPTS; i++) {
-    const built = tryGenerate((base + i * 9973) >>> 0);
+    const built = tryGenerate((base + i * 9973) >>> 0, mapSize);
     if (built) return built;
   }
-  return fallbackDungeon(base);
+  return fallbackDungeon(base, mapSize);
 }
 
 export function isReservedTile(dungeon: Dungeon, c: number, r: number): boolean {
