@@ -186,6 +186,34 @@ ul {
 .group-roster .member-list {
   margin-top: 16px;
 }
+.guild-workspace {
+  width: min(100%, 1120px);
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 560px);
+}
+.guild-character-list {
+  justify-content: flex-start;
+  padding: 0;
+}
+.guild-character-list .member-card strong {
+  font-size: 13px;
+}
+.guild-empty {
+  margin: 16px 0 0;
+  color: #9ca3af;
+  font-size: 13px;
+}
+.member-card[data-rarity="green"] {
+  border-color: #4ade80;
+}
+.member-card[data-rarity="blue"] {
+  border-color: #60a5fa;
+}
+.member-card[data-rarity="purple"] {
+  border-color: #c084fc;
+}
+.member-card[data-rarity="orange"] {
+  border-color: #fb923c;
+}
 .character-panel {
   margin-top: 20px;
   padding: 18px;
@@ -417,7 +445,7 @@ ul {
 }
 .group-bag-board {
   position: relative;
-  width: min(100%, 360px);
+  width: min(100%, 520px);
   aspect-ratio: 1;
   margin: 18px auto 0;
   overflow: visible;
@@ -426,7 +454,7 @@ ul {
   background-image:
     linear-gradient(to right, rgba(156, 163, 175, 0.35) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(156, 163, 175, 0.35) 1px, transparent 1px);
-  background-size: 20% 100%, 100% 20%;
+  background-size: 10% 100%, 100% 10%;
   touch-action: none;
   user-select: none;
 }

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { GEAR_KINDS, GEAR_SLOT_LABELS, GEAR_SLOTS, type GearSlot } from "../sim/gearKinds";
 import { PRIMARY_STATS, STAT_LABELS } from "../sim/stats";
-import { ITEM_RARITIES, type ItemRarity, type UnplacedItem } from "../sim/inventory";
+import { ITEM_RARITIES, RARITY_LABELS, type ItemRarity, type UnplacedItem } from "../sim/inventory";
 import {
   formatWeapon,
   generateGear,
@@ -18,14 +18,6 @@ type SlotFilter = "any" | GearSlot;
 type DebugItem = UnplacedItem & {
   key: string;
   seed: number;
-};
-
-const RARITY_LABELS: Record<ItemRarity, string> = {
-  gray: "Gray",
-  green: "Green",
-  blue: "Blue",
-  purple: "Purple",
-  orange: "Orange",
 };
 
 function slotLabel(slot: GearSlot): string {

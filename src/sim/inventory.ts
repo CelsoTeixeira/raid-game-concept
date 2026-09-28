@@ -1,14 +1,22 @@
 import { GEAR_KINDS, isGearKindId, type GearKindId, type GearSlot } from "./gearKinds";
 import type { Attributes } from "./types";
 
-export const BAG_COLUMNS = 5;
-export const BAG_ROWS = 5;
+/** Guild storage grid. */
+export const BAG_COLUMNS = 10;
+export const BAG_ROWS = 10;
 
-const BAG_STORAGE_KEY = "raid-game.bag.v2";
 const BONUS_KEYS = ["vitality", "intelligence", "strength", "agility", "armor", "threat", "healing"] as const;
 
 export const ITEM_RARITIES = ["gray", "green", "blue", "purple", "orange"] as const;
 export type ItemRarity = (typeof ITEM_RARITIES)[number];
+
+export const RARITY_LABELS: Record<ItemRarity, string> = {
+  gray: "Gray",
+  green: "Green",
+  blue: "Blue",
+  purple: "Purple",
+  orange: "Orange",
+};
 
 export type InventoryPlacement = {
   x: number;
@@ -142,42 +150,20 @@ export function parseGearItem(value: unknown): UnplacedItem | null {
 }
 
 /**
- * Saved bag, or null when nothing is stored. Invalid, overlapping, or duplicate entries are
- * dropped one by one; `excludeIds` drops items that already live elsewhere (equipped gear).
+ * Stored grid items. Invalid, overlapping, or duplicate entries are dropped one by one;
+ * `seen` holds ids that already live elsewhere (equipped gear) and collects the kept ones.
  */
-export function loadPersistedBag(excludeIds: ReadonlySet<string> = new Set()): InventoryItem[] | null {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const stored = window.localStorage.getItem(BAG_STORAGE_KEY);
-    if (!stored) return null;
-
-    const parsed: unknown = JSON.parse(stored);
-    if (!Array.isArray(parsed)) return null;
-
-    const seen = new Set(excludeIds);
-    let bag: InventoryItem[] = [];
-    for (const raw of parsed) {
-      const item = parseGearItem(raw);
-      if (!item || seen.has(item.id)) continue;
-      const { x, y } = raw as { x?: unknown; y?: unknown };
-      if (typeof x !== "number" || typeof y !== "number") continue;
-      if (!itemFitsAt(bag, item, { x, y })) continue;
-      seen.add(item.id);
-      bag = [...bag, { ...item, x, y }];
-    }
-    return bag;
-  } catch {
-    return null;
+export function parseInventory(value: unknown, seen: Set<string>): InventoryItem[] {
+  if (!Array.isArray(value)) return [];
+  let items: InventoryItem[] = [];
+  for (const raw of value) {
+    const item = parseGearItem(raw);
+    if (!item || seen.has(item.id)) continue;
+    const { x, y } = raw as { x?: unknown; y?: unknown };
+    if (typeof x !== "number" || typeof y !== "number") continue;
+    if (!itemFitsAt(items, item, { x, y })) continue;
+    seen.add(item.id);
+    items = [...items, { ...item, x, y }];
   }
-}
-
-export function persistBag(items: InventoryItem[]): void {
-  if (typeof window === "undefined") return;
-
-  try {
-    window.localStorage.setItem(BAG_STORAGE_KEY, JSON.stringify(items));
-  } catch {
-    // Storage can be unavailable or full; the in-memory bag remains usable.
-  }
+  return items;
 }

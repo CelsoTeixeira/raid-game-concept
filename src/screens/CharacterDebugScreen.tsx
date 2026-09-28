@@ -1,23 +1,16 @@
 import { useState } from "react";
-import { lookFrames, type CharacterLook } from "../appearance";
+import { lookFrames } from "../appearance";
 import { CHARACTER_RARITY_POINTS, rollCharacter, type RolledCharacter } from "../sim/characterGen";
-import { ITEM_RARITIES, type ItemRarity } from "../sim/inventory";
+import { ITEM_RARITIES, RARITY_LABELS, type ItemRarity } from "../sim/inventory";
 import { mulberry32 } from "../sim/items";
 import { formatName, nameKey, REGION_LABELS, REGIONS, SEX_LABELS, SEXES, type Region, type Sex } from "../sim/names";
 import { BASE_ATTRIBUTE_FLOOR, deriveStats, NO_GEAR, PRIMARY_STATS, STAT_LABELS, UNARMED } from "../sim/stats";
+import { SpriteStack } from "./SpriteStack";
 
 type RegionFilter = "any" | Region;
 type SexFilter = "any" | Sex;
 
 type DebugCharacter = RolledCharacter & { key: string };
-
-const RARITY_LABELS: Record<ItemRarity, string> = {
-  gray: "Gray",
-  green: "Green",
-  blue: "Blue",
-  purple: "Purple",
-  orange: "Orange",
-};
 
 function attributeTotal(character: RolledCharacter): number {
   return PRIMARY_STATS.reduce((sum, stat) => sum + character.baseAttributes[stat], 0);
@@ -29,28 +22,11 @@ function bareStats(character: RolledCharacter) {
   return { health: stats.maxHealth, mana: stats.maxMana, move: stats.movementSpeed };
 }
 
-/** Sheet tiles are 16px with a 1px margin; `size` is the drawn tile size in px. */
-function LookSprite({ look, size }: { look: CharacterLook; size: number }) {
-  const scale = size / 16;
-  const layerStyle = { width: size, height: size, backgroundSize: `${918 * scale}px ${203 * scale}px` };
-  return (
-    <span className="member-preview" style={{ width: size, height: size }} aria-hidden="true">
-      {lookFrames(look).map((frame, index) => (
-        <span
-          className="member-sprite-layer"
-          key={`${frame.col}-${frame.row}-${index}`}
-          style={{ ...layerStyle, backgroundPosition: `-${frame.col * 17 * scale}px -${frame.row * 17 * scale}px` }}
-        />
-      ))}
-    </span>
-  );
-}
-
 function CharacterCard({ character }: { character: DebugCharacter }) {
   const stats = bareStats(character);
   return (
     <article className="item-debug-card" data-rarity={character.rarity}>
-      <LookSprite look={character.look} size={80} />
+      <SpriteStack frames={lookFrames(character.look)} size={80} />
       <strong>{formatName(character.name)}</strong>
       <span>
         {RARITY_LABELS[character.rarity]} · {SEX_LABELS[character.sex]} · {REGION_LABELS[character.region]}
@@ -226,7 +202,7 @@ export function CharacterDebugScreen({ onBack }: { onBack: () => void }) {
                 return (
                   <tr data-rarity={character.rarity} key={character.key}>
                     <td>
-                      <LookSprite look={character.look} size={48} />
+                      <SpriteStack frames={lookFrames(character.look)} size={48} />
                     </td>
                     <td>{RARITY_LABELS[character.rarity]}</td>
                     <td>{formatName(character.name)}</td>

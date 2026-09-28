@@ -1,66 +1,37 @@
 import { useEffect, useState } from "react";
-import { equippedItemIds, type EquipmentSlot } from "./sim/character";
-import { equipFromBag, unequipToBag, type EquipResult } from "./sim/equip";
-import { loadPersistedGroup, persistGroup, replaceGroupMember } from "./sim/group";
-import { loadPersistedBag, moveInventoryItem, persistBag, type InventoryPlacement } from "./sim/inventory";
-import { generateStarterBag, rollItemIntoBag } from "./sim/items";
 import type { DungeonEncounter } from "./sim/dungeonWorld";
+import { DEFAULT_GROUP } from "./sim/group";
+import { loadPersistedGuild, moveStorageItem, persistGuild } from "./sim/guild";
+import type { InventoryPlacement } from "./sim/inventory";
 import { CharacterDebugScreen } from "./screens/CharacterDebugScreen";
 import { DungeonScreen } from "./screens/DungeonScreen";
 import { FieldScreen } from "./screens/FieldScreen";
-import { GroupScreen } from "./screens/GroupScreen";
+import { GroupSelectScreen } from "./screens/GroupSelectScreen";
+import { GuildScreen } from "./screens/GuildScreen";
 import { ItemDebugScreen } from "./screens/ItemDebugScreen";
 import { StartScreen } from "./screens/StartScreen";
 
+type Screen = "start" | "guild" | "groupSelect" | "field" | "dungeon" | "items" | "characters";
+
 export function App() {
-  const [screen, setScreen] = useState<"start" | "group" | "field" | "dungeon" | "items" | "characters">("start");
-  const [initial] = useState(() => {
-    const group = loadPersistedGroup();
-    const equipped = equippedItemIds(group);
-    const bag = loadPersistedBag(equipped) ?? generateStarterBag(1).filter((item) => !equipped.has(item.id));
-    return { group, bag };
-  });
-  const [group, setGroup] = useState(initial.group);
-  const [bag, setBag] = useState(initial.bag);
+  const [screen, setScreen] = useState<Screen>("start");
+  const [guild, setGuild] = useState(loadPersistedGuild);
   const [encounter, setEncounter] = useState<DungeonEncounter | undefined>();
-  const [dungeonBackScreen, setDungeonBackScreen] = useState<"start" | "group">("start");
 
   useEffect(() => {
-    persistGroup(group);
-  }, [group]);
+    persistGuild(guild);
+  }, [guild]);
 
-  useEffect(() => {
-    persistBag(bag);
-  }, [bag]);
-
-  const moveBagItem = (itemId: string, placement: InventoryPlacement) => {
-    setBag((currentBag) => moveInventoryItem(currentBag, itemId, placement));
+  const moveGuildStorageItem = (itemId: string, placement: InventoryPlacement) => {
+    setGuild((current) => moveStorageItem(current, itemId, placement));
   };
-
-  const rollBagItem = () => {
-    setBag((currentBag) => rollItemIntoBag(currentBag));
-  };
-
-  const applyEquip = (memberIndex: number, result: EquipResult): string | null => {
-    if (!result.ok) return result.reason;
-    setBag(result.bag);
-    setGroup((current) => replaceGroupMember(current, memberIndex, result.character));
-    return null;
-  };
-
-  const equipItem = (memberIndex: number, itemId: string, slot?: EquipmentSlot) =>
-    applyEquip(memberIndex, equipFromBag(bag, group[memberIndex]!, itemId, slot));
-
-  const unequipItem = (memberIndex: number, slot: EquipmentSlot, placement?: InventoryPlacement) =>
-    applyEquip(memberIndex, unequipToBag(bag, group[memberIndex]!, slot, placement));
 
   if (screen === "start") {
     return (
       <StartScreen
-        onPlay={() => setScreen("group")}
+        onPlay={() => setScreen("guild")}
         onDungeon={() => {
           setEncounter(undefined);
-          setDungeonBackScreen("start");
           setScreen("dungeon");
         }}
         onItems={() => setScreen("items")}
@@ -68,12 +39,25 @@ export function App() {
       />
     );
   }
+  if (screen === "guild") {
+    return (
+      <GuildScreen
+        guild={guild}
+        onMoveStorageItem={moveGuildStorageItem}
+        onPlay={() => setScreen("groupSelect")}
+        onBack={() => setScreen("start")}
+      />
+    );
+  }
+  if (screen === "groupSelect") {
+    return <GroupSelectScreen guild={guild} onBack={() => setScreen("guild")} />;
+  }
   if (screen === "dungeon") {
     return (
       <DungeonScreen
-        group={group}
+        group={DEFAULT_GROUP}
         encounter={encounter}
-        onLeave={() => setScreen(dungeonBackScreen)}
+        onLeave={() => setScreen("start")}
         onStartGame={(nextEncounter) => {
           setEncounter(nextEncounter);
           setScreen("field");
@@ -87,24 +71,5 @@ export function App() {
   if (screen === "characters") {
     return <CharacterDebugScreen onBack={() => setScreen("start")} />;
   }
-  if (screen === "group") {
-    return (
-      <GroupScreen
-        group={group}
-        bag={bag}
-        onBack={() => setScreen("start")}
-        onEnterDungeon={() => {
-          setEncounter(undefined);
-          setDungeonBackScreen("group");
-          setScreen("dungeon");
-        }}
-        onMoveBagItem={moveBagItem}
-        onRollBagItem={rollBagItem}
-        onEquipItem={equipItem}
-        onUnequipItem={unequipItem}
-        onChangeMember={(index, member) => setGroup((current) => replaceGroupMember(current, index, member))}
-      />
-    );
-  }
-  return <FieldScreen group={group} encounter={encounter!} onLeave={() => setScreen("dungeon")} />;
+  return <FieldScreen group={DEFAULT_GROUP} encounter={encounter!} onLeave={() => setScreen("dungeon")} />;
 }

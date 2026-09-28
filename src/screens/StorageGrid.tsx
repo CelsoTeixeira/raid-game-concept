@@ -51,33 +51,33 @@ function dragStatus(items: InventoryItem[], drag: ItemDrag): string {
     : `${item.name}: drop in the bag or on a matching slot, or press Escape to cancel.`;
 }
 
-export function GroupBag({
+/** Guild storage grid. Equipping is only offered when `onEquipItem` is given and `canEquip` is on. */
+export function StorageGrid({
   items,
   drag,
   boardRef,
   startDrag,
   dragHandlers,
-  canEquip,
-  notice,
+  canEquip = false,
+  notice = null,
   onMoveItem,
   onEquipItem,
-  onRollItem,
 }: {
   items: InventoryItem[];
   drag: ItemDrag | null;
   boardRef: RefObject<HTMLDivElement | null>;
   startDrag: StartItemDrag;
   dragHandlers: ItemDragHandlers;
-  canEquip: boolean;
-  notice: string | null;
+  canEquip?: boolean;
+  notice?: string | null;
   onMoveItem: (itemId: string, placement: InventoryPlacement) => void;
-  onEquipItem: (itemId: string) => void;
-  onRollItem: () => void;
+  onEquipItem?: (itemId: string) => void;
 }) {
+  const equip = canEquip ? onEquipItem : undefined;
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, item: InventoryItem) => {
-    if (event.key === "Enter" && canEquip) {
+    if (event.key === "Enter" && equip) {
       event.preventDefault();
-      onEquipItem(item.id);
+      equip(item.id);
       return;
     }
     const offset = KEY_OFFSETS[event.key];
@@ -89,28 +89,28 @@ export function GroupBag({
 
   const bagPreview = drag?.target?.to === "bag" ? drag.target.placement : null;
   const previewIsValid = Boolean(drag && bagPreview && isDropValid(items, drag, bagPreview));
-  const idleStatus = canEquip
-    ? "Drag to rearrange or onto a matching slot. Double-click or press Enter to equip."
-    : "Drag items to rearrange them, or focus one and use the arrow keys. Open a character to equip gear.";
+  const idleStatus =
+    items.length === 0
+      ? "Storage is empty."
+      : equip
+        ? "Drag to rearrange or onto a matching slot. Double-click or press Enter to equip."
+        : "Drag items to rearrange them, or focus one and use the arrow keys.";
 
   return (
-    <section className="group-bag" aria-labelledby="group-bag-title">
+    <section className="group-bag" aria-labelledby="storage-title">
       <div className="group-bag-heading">
         <div>
-          <h2 id="group-bag-title">Group bag</h2>
-          <p>5 × 5 slots · gray to orange gear</p>
+          <h2 id="storage-title">Storage</h2>
+          <p>
+            {BAG_COLUMNS} × {BAG_ROWS} slots
+          </p>
         </div>
-        <div className="group-bag-heading-actions">
-          <span className="group-bag-count">{items.length} items</span>
-          <button type="button" onClick={onRollItem}>
-            Roll item
-          </button>
-        </div>
+        <span className="group-bag-count">{items.length} items</span>
       </div>
       <div
         className="group-bag-board"
         ref={boardRef}
-        aria-label="Group bag, five columns by five rows"
+        aria-label={`Storage, ${BAG_COLUMNS} columns by ${BAG_ROWS} rows`}
       >
         {drag && bagPreview ? (
           <div
@@ -137,12 +137,10 @@ export function GroupBag({
               key={item.id}
               type="button"
               style={itemStyle(item)}
-              aria-label={`${item.name}, ${item.rarity}, ${bonusText || "no bonuses"}, ${item.width} by ${item.height} slots, column ${item.x + 1}, row ${item.y + 1}. Use arrow keys to move${canEquip ? ", Enter to equip" : ""}.`}
+              aria-label={`${item.name}, ${item.rarity}, ${bonusText || "no bonuses"}, ${item.width} by ${item.height} slots, column ${item.x + 1}, row ${item.y + 1}. Use arrow keys to move${equip ? ", Enter to equip" : ""}.`}
               onKeyDown={(event) => handleKeyDown(event, item)}
               onPointerDown={(event) => startDrag(event, { from: "bag", item })}
-              onDoubleClick={() => {
-                if (canEquip) onEquipItem(item.id);
-              }}
+              onDoubleClick={() => equip?.(item.id)}
               {...dragHandlers}
             >
               <span className="group-bag-item-name">{item.name}</span>
