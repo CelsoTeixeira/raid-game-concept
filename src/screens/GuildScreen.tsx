@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { appearanceFrames, getMemberAppearance } from "../appearance";
 import type { EquipmentSlot } from "../sim/character";
 import { FIRST_RECRUIT_RARITY, type Guild, type GuildCharacter } from "../sim/guild";
+import { canOpenStarterChest, STARTER_CHEST_RARITY } from "../sim/starterChest";
 import { RARITY_LABELS, type InventoryPlacement } from "../sim/inventory";
 import { formatName, REGION_LABELS, SEX_LABELS } from "../sim/names";
 import { PRIMARY_STATS, STAT_LABELS } from "../sim/stats";
@@ -39,6 +40,7 @@ export function GuildScreen({
   guild,
   onMoveStorageItem,
   onRecruit,
+  onOpenStarterChest,
   onEquipItem,
   onUnequipItem,
   onPlay,
@@ -48,6 +50,8 @@ export function GuildScreen({
   onMoveStorageItem: (itemId: string, placement: InventoryPlacement) => void;
   /** Rolls the first character; only offered while the guild is empty. */
   onRecruit: () => void;
+  /** Opens the one-time starter chest. Returns the notice to show. */
+  onOpenStarterChest: () => string;
   /** Returns why the item could not be equipped, or null on success. */
   onEquipItem: (characterId: string, itemId: string, slot?: EquipmentSlot) => string | null;
   /** Returns why the item could not be unequipped, or null on success. */
@@ -117,6 +121,17 @@ export function GuildScreen({
                 </div>
                 <span className="group-bag-count">{guild.characters.length} characters</span>
               </div>
+              {canOpenStarterChest(guild) ? (
+                <div className="guild-chest">
+                  <p>
+                    Starter chest: one {RARITY_LABELS[STARTER_CHEST_RARITY].toLowerCase()} item for each role (tank,
+                    dps, healer).
+                  </p>
+                  <button type="button" onClick={() => setNotice(onOpenStarterChest())}>
+                    Open chest
+                  </button>
+                </div>
+              ) : null}
               {guild.characters.length === 0 ? (
                 <div className="guild-empty">
                   <p>No characters yet. Roll one to start your guild.</p>

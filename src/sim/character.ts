@@ -135,18 +135,6 @@ export function characterWithEquipment(
   });
 }
 
-/** Warnings when gear does not support the chosen role. Mismatches are allowed. */
-export function roleHints(character: Character): string[] {
-  const hints: string[] = [];
-  if (character.role === "healer" && character.stats.healPower <= 0) {
-    hints.push("No healing gear (wand or tome): this healer will only attack.");
-  }
-  if (character.role === "tank" && character.stats.threat <= 1) {
-    hints.push("No threat gear (shield): damage dealers may pull enemies off this tank.");
-  }
-  return hints;
-}
-
 export function equippedItemIds(characters: readonly Character[]): Set<string> {
   const ids = new Set<string>();
   for (const character of characters) {

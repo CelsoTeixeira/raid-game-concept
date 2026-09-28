@@ -187,8 +187,11 @@ ul {
   margin-top: 16px;
 }
 .guild-workspace {
-  width: min(100%, 1120px);
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 560px);
+  width: min(100%, 1440px);
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 700px);
+}
+.guild-workspace .group-bag-board {
+  width: min(100%, 660px);
 }
 .guild-character-list {
   justify-content: flex-start;
@@ -208,6 +211,21 @@ ul {
   font-size: 13px;
 }
 .guild-empty p {
+  margin: 0;
+}
+.guild-chest {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #eab308;
+  background: #1c1917;
+  color: #e5e7eb;
+  font-size: 13px;
+}
+.guild-chest p {
   margin: 0;
 }
 .member-card[data-rarity="green"] {
@@ -245,7 +263,7 @@ ul {
 }
 .character-panel-content {
   display: grid;
-  grid-template-columns: minmax(110px, 0.7fr) minmax(0, 1fr);
+  grid-template-columns: minmax(120px, 160px) minmax(0, 1fr);
   align-items: center;
   gap: 18px;
   margin-top: 18px;
@@ -326,12 +344,6 @@ ul {
   color: #d1d5db;
   font-size: 12px;
 }
-.role-hints {
-  margin: 0;
-  padding-left: 16px;
-  color: #fbbf24;
-  font-size: 12px;
-}
 .equipment-slots {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -371,18 +383,18 @@ ul {
 }
 .equipment-slot-item {
   display: flex;
+  flex-direction: column;
   align-items: stretch;
   gap: 6px;
   min-width: 0;
 }
 .equipment-slot-gear {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: start;
   gap: 2px;
   min-width: 0;
-  padding: 4px 6px;
+  padding: 6px 8px;
   border: 1px solid #9ca3af;
   background: #374151;
   color: #e5e7eb;
@@ -421,7 +433,8 @@ ul {
   color: #ffedd5;
 }
 .equipment-slot-unequip {
-  padding: 4px 8px;
+  align-self: flex-end;
+  padding: 3px 8px;
   font-size: 11px;
 }
 .group-bag-heading {
@@ -496,6 +509,13 @@ ul {
 .group-bag-item-stats {
   min-width: 0;
   max-width: 100%;
+}
+.item-kind {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.7;
 }
 .group-bag-item-stats {
   font-size: clamp(9px, 2vw, 11px);

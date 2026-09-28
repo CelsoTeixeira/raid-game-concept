@@ -12,6 +12,8 @@ import {
 } from "./sim/guild";
 import type { InventoryPlacement } from "./sim/inventory";
 import { mulberry32 } from "./sim/items";
+import { openStarterChest } from "./sim/starterChest";
+import { ROLE_LABELS } from "./sim/character";
 import { CharacterDebugScreen } from "./screens/CharacterDebugScreen";
 import { DungeonScreen } from "./screens/DungeonScreen";
 import { FieldScreen } from "./screens/FieldScreen";
@@ -60,6 +62,13 @@ export function App() {
         guild={guild}
         onMoveStorageItem={moveGuildStorageItem}
         onRecruit={() => setGuild((current) => recruitFirstCharacter(current, mulberry32(Date.now())))}
+        onOpenStarterChest={() => {
+          const result = openStarterChest(guild, mulberry32(Date.now()));
+          if (!result.ok) return result.reason;
+          setGuild(result.guild);
+          const received = result.items.map(({ role, item }) => `${item.name} (${ROLE_LABELS[role]})`);
+          return `Starter chest: ${received.join(", ")}. Open a character to equip them.`;
+        }}
         onEquipItem={(characterId, itemId, slot) =>
           applyGuildResult(equipGuildItem(guild, characterId, itemId, slot))
         }

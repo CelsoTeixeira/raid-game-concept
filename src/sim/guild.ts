@@ -32,16 +32,17 @@ export type GuildCharacter = Character & {
   region: Region;
 };
 
-/** Everything the player has collected: characters and the storage grid. */
+/** Everything the player has collected: characters, the storage grid, and one-time rewards taken. */
 export type Guild = {
   characters: GuildCharacter[];
   storage: InventoryItem[];
+  starterChestOpened: boolean;
 };
 
 const GUILD_STORAGE_KEY = "raid-game.guild.v1";
 
 export function emptyGuild(): Guild {
-  return { characters: [], storage: [] };
+  return { characters: [], storage: [], starterChestOpened: false };
 }
 
 /** Rarity of the free roll offered to an empty guild. Lowest quality for now. */
@@ -80,6 +81,7 @@ function applyEquip(guild: Guild, characterId: string, result: EquipResult): Gui
   return {
     ok: true,
     guild: {
+      ...guild,
       storage: result.bag,
       characters: guild.characters.map((current) =>
         current.id === characterId ? { ...current, ...result.character } : current,
@@ -202,7 +204,11 @@ export function loadPersistedGuild(): Guild {
     const characters = (Array.isArray(parsed.characters) ? parsed.characters : [])
       .map((value) => parseCharacter(value, seenCharacters, seenItems))
       .filter((character): character is GuildCharacter => character !== null);
-    return { characters, storage: parseInventory(parsed.storage, seenItems) };
+    return {
+      characters,
+      storage: parseInventory(parsed.storage, seenItems),
+      starterChestOpened: parsed.starterChestOpened === true,
+    };
   } catch {
     return emptyGuild();
   }
@@ -225,6 +231,7 @@ export function persistGuild(guild: Guild): void {
         equipment: character.equipment,
       })),
       storage: guild.storage,
+      starterChestOpened: guild.starterChestOpened,
     };
     window.localStorage.setItem(GUILD_STORAGE_KEY, JSON.stringify(stored));
   } catch {

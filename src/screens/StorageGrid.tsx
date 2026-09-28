@@ -8,6 +8,7 @@ import {
   type InventoryItem,
   type InventoryPlacement,
 } from "../sim/inventory";
+import { GEAR_KINDS } from "../sim/gearKinds";
 import { formatItemBonuses, formatItemBonusesShort, formatWeapon } from "../sim/items";
 import type { ItemDrag, ItemDragHandlers, StartItemDrag } from "./itemDrag";
 
@@ -137,13 +138,14 @@ export function StorageGrid({
               key={item.id}
               type="button"
               style={itemStyle(item)}
-              aria-label={`${item.name}, ${item.rarity}, ${bonusText || "no bonuses"}, ${item.width} by ${item.height} slots, column ${item.x + 1}, row ${item.y + 1}. Use arrow keys to move${equip ? ", Enter to equip" : ""}.`}
+              aria-label={`${item.name}, ${item.rarity} ${GEAR_KINDS[item.kind].label.toLowerCase()}, ${bonusText || "no bonuses"}, ${item.width} by ${item.height} slots, column ${item.x + 1}, row ${item.y + 1}. Use arrow keys to move${equip ? ", Enter to equip" : ""}.`}
               onKeyDown={(event) => handleKeyDown(event, item)}
               onPointerDown={(event) => startDrag(event, { from: "bag", item })}
               onDoubleClick={() => equip?.(item.id)}
               {...dragHandlers}
             >
               <span className="group-bag-item-name">{item.name}</span>
+              <span className="item-kind">{GEAR_KINDS[item.kind].label}</span>
               {shortBonuses ? <span className="group-bag-item-stats">{shortBonuses}</span> : null}
             </button>
           );

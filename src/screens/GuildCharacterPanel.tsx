@@ -2,8 +2,6 @@ import { appearanceFrames, getMemberAppearance } from "../appearance";
 import {
   EQUIPMENT_SLOT_LABELS,
   EQUIPMENT_SLOTS,
-  ROLE_LABELS,
-  roleHints,
   slotsForItem,
   type Character,
   type EquipmentSlot,
@@ -63,7 +61,6 @@ export function GuildCharacterPanel({
   const name = formatName(character.name);
   const mainHand = character.equipment.mainHand;
   const weapon = (mainHand && GEAR_KINDS[mainHand.kind].weapon) || UNARMED;
-  const hints = roleHints(character);
 
   return (
     <section className="character-panel" aria-labelledby="character-panel-title">
@@ -81,7 +78,6 @@ export function GuildCharacterPanel({
       <div className="character-panel-content">
         <div className="character-panel-preview">
           <SpriteStack frames={appearanceFrames(getMemberAppearance(character, index))} size={85} />
-          <strong>{ROLE_LABELS[character.role]}</strong>
           <span>
             {mainHand ? GEAR_KINDS[mainHand.kind].label : "Unarmed"} · {isRanged(character.stats) ? "Ranged" : "Melee"}
           </span>
@@ -103,13 +99,6 @@ export function GuildCharacterPanel({
             })}
           </ul>
           <p className="derived-stats">{derivedStatsLine(character)}</p>
-          {hints.length > 0 ? (
-            <ul className="role-hints">
-              {hints.map((hint) => (
-                <li key={hint}>{hint}</li>
-              ))}
-            </ul>
-          ) : null}
           <ul className="equipment-slots" aria-label={`${name} equipment slots`}>
             {EQUIPMENT_SLOTS.map((slot) => {
               const item = character.equipment[slot];
@@ -125,12 +114,13 @@ export function GuildCharacterPanel({
                         data-rarity={item.rarity}
                         type="button"
                         title={weaponText || undefined}
-                        aria-label={`${item.name}, ${item.rarity}, ${weaponText ? `${weaponText}, ` : ""}${formatItemBonuses(item.bonuses) || "no bonuses"}. Drag to storage or double-click to unequip.`}
+                        aria-label={`${item.name}, ${item.rarity} ${GEAR_KINDS[item.kind].label.toLowerCase()}, ${weaponText ? `${weaponText}, ` : ""}${formatItemBonuses(item.bonuses) || "no bonuses"}. Drag to storage or double-click to unequip.`}
                         onPointerDown={(event) => startDrag(event, { from: "slot", item, slot })}
                         onDoubleClick={() => onUnequip(slot)}
                         {...dragHandlers}
                       >
                         <span>{item.name}</span>
+                        <span className="item-kind">{GEAR_KINDS[item.kind].label}</span>
                         <span className="equipment-slot-stats">{formatItemBonusesShort(item.bonuses)}</span>
                       </button>
                       <button
