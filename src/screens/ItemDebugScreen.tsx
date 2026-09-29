@@ -12,6 +12,7 @@ import {
   RARITY_STAT_COUNT,
   RARITY_WEIGHTS,
 } from "../sim/items";
+import { ItemIcon } from "./ItemIcon";
 
 type RarityFilter = "any" | ItemRarity;
 type SlotFilter = "any" | GearSlot;
@@ -71,6 +72,7 @@ function ItemCard({ item }: { item: DebugItem }) {
   const total = primaryBonusTotal(item.bonuses);
   return (
     <article className="item-debug-card" data-rarity={item.rarity}>
+      <ItemIcon item={item} cell={52} scale={2} />
       <strong>{item.name}</strong>
       <span>
         {RARITY_LABELS[item.rarity]} · {itemKindLabel(item)} · {slotLabel(item.slot)} · {item.width}×{item.height}
@@ -212,6 +214,7 @@ export function ItemDebugScreen({ onBack }: { onBack: () => void }) {
           <thead>
             <tr>
               <th>Rarity</th>
+              <th>Icon</th>
               <th>Name</th>
               <th>Kind</th>
               <th>Slot</th>
@@ -227,12 +230,15 @@ export function ItemDebugScreen({ onBack }: { onBack: () => void }) {
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={11}>No rolls yet. Roll 1 or Roll ladder to fill this log.</td>
+                <td colSpan={12}>No rolls yet. Roll 1 or Roll ladder to fill this log.</td>
               </tr>
             ) : (
               items.map((item) => (
                 <tr data-rarity={item.rarity} key={item.key}>
                   <td>{RARITY_LABELS[item.rarity]}</td>
+                  <td>
+                    <ItemIcon item={item} cell={26} scale={1} />
+                  </td>
                   <td>{item.name}</td>
                   <td>{itemKindLabel(item)}</td>
                   <td>{slotLabel(item.slot)}</td>

@@ -1,16 +1,47 @@
 import { useState } from "react";
-import { lookFrames } from "../appearance";
+import { PLAIN_OUTFIT, rollArtLook, type ArtLook, type ArtOutfit } from "../art";
 import { CHARACTER_RARITY_POINTS, rollCharacter, type RolledCharacter } from "../sim/characterGen";
+import { ARMOR_FAMILIES, ARMOR_FAMILY_DEFS, type ArmorFamily } from "../sim/gearKinds";
 import { ITEM_RARITIES, RARITY_LABELS, type ItemRarity } from "../sim/inventory";
 import { mulberry32 } from "../sim/items";
 import { formatName, nameKey, REGION_LABELS, REGIONS, SEX_LABELS, SEXES, type Region, type Sex } from "../sim/names";
 import { BASE_ATTRIBUTE_FLOOR, deriveStats, NO_GEAR, PRIMARY_STATS, STAT_LABELS, UNARMED } from "../sim/stats";
-import { SpriteStack } from "./SpriteStack";
+import { ArtCharacter } from "./ArtCharacter";
 
 type RegionFilter = "any" | Region;
 type SexFilter = "any" | Sex;
 
-type DebugCharacter = RolledCharacter & { key: string };
+/** `art` is a preview of the new layered look, rolled here only; saved characters keep their Kenney look. */
+type DebugCharacter = RolledCharacter & { key: string; art: ArtLook };
+
+/** Separate stream so the preview look does not shift names or stats for a seed. */
+const ART_SEED_SALT = 0x5bd1e995;
+
+function OutfitSelect({
+  label,
+  none,
+  value,
+  onChange,
+}: {
+  label: string;
+  none: string;
+  value: ArmorFamily | null;
+  onChange: (value: ArmorFamily | null) => void;
+}) {
+  return (
+    <label>
+      {label}
+      <select value={value ?? ""} onChange={(event) => onChange((event.target.value || null) as ArmorFamily | null)}>
+        <option value="">{none}</option>
+        {ARMOR_FAMILIES.map((id) => (
+          <option key={id} value={id}>
+            {ARMOR_FAMILY_DEFS[id].label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
 
 function attributeTotal(character: RolledCharacter): number {
   return PRIMARY_STATS.reduce((sum, stat) => sum + character.baseAttributes[stat], 0);
@@ -22,11 +53,11 @@ function bareStats(character: RolledCharacter) {
   return { health: stats.maxHealth, mana: stats.maxMana, move: stats.movementSpeed };
 }
 
-function CharacterCard({ character }: { character: DebugCharacter }) {
+function CharacterCard({ character, outfit }: { character: DebugCharacter; outfit: ArtOutfit }) {
   const stats = bareStats(character);
   return (
     <article className="item-debug-card" data-rarity={character.rarity}>
-      <SpriteStack frames={lookFrames(character.look)} size={80} />
+      <ArtCharacter sex={character.sex} look={character.art} outfit={outfit} scale={3} />
       <strong>{formatName(character.name)}</strong>
       <span>
         {RARITY_LABELS[character.rarity]} · {SEX_LABELS[character.sex]} · {REGION_LABELS[character.region]}
@@ -50,6 +81,7 @@ export function CharacterDebugScreen({ onBack }: { onBack: () => void }) {
   const [ladder, setLadder] = useState<DebugCharacter[]>([]);
   const [takenNames, setTakenNames] = useState<ReadonlySet<string>>(() => new Set());
   const [lastSeed, setLastSeed] = useState<number | null>(null);
+  const [outfit, setOutfit] = useState<ArtOutfit>(PLAIN_OUTFIT);
 
   const seed = Number.parseInt(seedText, 10);
   const seedValue = Number.isFinite(seed) ? seed >>> 0 : 1;
@@ -57,6 +89,7 @@ export function CharacterDebugScreen({ onBack }: { onBack: () => void }) {
   /** Rolls in order against the name ledger so no full name repeats on this screen. */
   const roll = (rarities: readonly ItemRarity[], keyPrefix: string): DebugCharacter[] => {
     const rng = mulberry32(seedValue);
+    const artRng = mulberry32((seedValue ^ ART_SEED_SALT) >>> 0);
     const taken = new Set(takenNames);
     const batch = rarities.map((pinned, index) => {
       const character = rollCharacter({
@@ -67,7 +100,7 @@ export function CharacterDebugScreen({ onBack }: { onBack: () => void }) {
         takenNames: taken,
       });
       taken.add(nameKey(character.name));
-      return { ...character, key: `${keyPrefix}-${index}` };
+      return { ...character, key: `${keyPrefix}-${index}`, art: rollArtLook(artRng, character.sex) };
     });
     setTakenNames(taken);
     setCharacters((current) => [...batch, ...current].slice(0, 100));
@@ -140,6 +173,27 @@ export function CharacterDebugScreen({ onBack }: { onBack: () => void }) {
             <input inputMode="numeric" value={seedText} onChange={(event) => setSeedText(event.target.value)} />
           </label>
         </div>
+        <div className="item-debug-field">
+          <span>Outfit preview (all characters)</span>
+          <OutfitSelect
+            label="Chest"
+            none="Plain"
+            value={outfit.chest}
+            onChange={(chest) => setOutfit((current) => ({ ...current, chest }))}
+          />
+          <OutfitSelect
+            label="Pants"
+            none="Plain"
+            value={outfit.pants}
+            onChange={(pants) => setOutfit((current) => ({ ...current, pants }))}
+          />
+          <OutfitSelect
+            label="Helmet"
+            none="None"
+            value={outfit.helmet}
+            onChange={(helmet) => setOutfit((current) => ({ ...current, helmet }))}
+          />
+        </div>
         <div className="row-inline">
           <button type="button" onClick={() => addRoll(1)}>
             Roll 1
@@ -168,7 +222,7 @@ export function CharacterDebugScreen({ onBack }: { onBack: () => void }) {
       {ladder.length > 0 ? (
         <section className="item-debug-ladder" aria-label="Rarity ladder">
           {ladder.map((character) => (
-            <CharacterCard character={character} key={character.key} />
+            <CharacterCard character={character} outfit={outfit} key={character.key} />
           ))}
         </section>
       ) : null}
@@ -202,7 +256,7 @@ export function CharacterDebugScreen({ onBack }: { onBack: () => void }) {
                 return (
                   <tr data-rarity={character.rarity} key={character.key}>
                     <td>
-                      <SpriteStack frames={lookFrames(character.look)} size={48} />
+                      <ArtCharacter sex={character.sex} look={character.art} outfit={outfit} scale={2} />
                     </td>
                     <td>{RARITY_LABELS[character.rarity]}</td>
                     <td>{formatName(character.name)}</td>
