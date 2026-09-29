@@ -32,6 +32,9 @@ export type ItemDragHandlers = {
 
 export type StartItemDrag = (event: React.PointerEvent<HTMLElement>, source: DragSource) => void;
 
+/** Pointer travel in pixels before a press becomes a drag, so clicks and double-clicks stay clicks. */
+const DRAG_THRESHOLD = 4;
+
 /**
  * One pointer drag shared by the bag grid and the equipment slots.
  * Slots mark themselves with `data-equipment-slot`, the trash with `data-item-trash`; the bag target comes from `boardRef`.
@@ -42,6 +45,8 @@ export function useItemDrag(
 ) {
   const [drag, setDrag] = useState<ItemDrag | null>(null);
   const dragRef = useRef<ItemDrag | null>(null);
+  /** Pressed but not yet moved past the threshold; nothing is drawn for it. */
+  const pendingRef = useRef<ItemDrag | null>(null);
   const sourceRef = useRef<HTMLElement | null>(null);
   const onDropRef = useRef(onDrop);
   onDropRef.current = onDrop;
@@ -52,10 +57,11 @@ export function useItemDrag(
   };
 
   const cancel = () => {
-    const active = dragRef.current;
+    const active = dragRef.current ?? pendingRef.current;
     const source = sourceRef.current;
     sourceRef.current = null;
-    update(null);
+    pendingRef.current = null;
+    if (dragRef.current) update(null);
     if (active && source?.hasPointerCapture(active.pointerId)) {
       source.releasePointerCapture(active.pointerId);
     }
@@ -92,7 +98,7 @@ export function useItemDrag(
   };
 
   const start: StartItemDrag = (event, source) => {
-    if (event.button !== 0 || dragRef.current) return;
+    if (event.button !== 0 || dragRef.current || pendingRef.current) return;
 
     const { item } = source;
     let grabOffsetX = Math.floor(item.width / 2);
@@ -108,7 +114,7 @@ export function useItemDrag(
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     sourceRef.current = event.currentTarget;
-    update({
+    pendingRef.current = {
       source,
       pointerId: event.pointerId,
       grabOffsetX,
@@ -119,16 +125,26 @@ export function useItemDrag(
         source.from === "bag"
           ? { to: "bag", placement: { x: source.item.x, y: source.item.y } }
           : { to: "slot", slot: source.slot },
-    });
+    };
   };
 
   const handlers: ItemDragHandlers = {
     onPointerMove: (event) => {
+      const pending = pendingRef.current;
+      if (pending?.pointerId === event.pointerId) {
+        if (Math.hypot(event.clientX - pending.x, event.clientY - pending.y) < DRAG_THRESHOLD) return;
+        pendingRef.current = null;
+        update(pending);
+      }
       const active = dragRef.current;
       if (!active || active.pointerId !== event.pointerId) return;
       update({ ...active, target: targetAt(event.clientX, event.clientY, active), x: event.clientX, y: event.clientY });
     },
     onPointerUp: (event) => {
+      if (pendingRef.current?.pointerId === event.pointerId) {
+        cancel();
+        return;
+      }
       const active = dragRef.current;
       if (!active || active.pointerId !== event.pointerId) return;
       cancel();
