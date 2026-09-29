@@ -89,7 +89,8 @@ export class DungeonWorld {
   private nextUnit = 1;
   private nextGroup = 1;
 
-  constructor(encounter?: DungeonEncounter | number) {
+  constructor(encounter?: DungeonEncounter | number, mapSize: MapSize = "medium") {
+    this.mapSize = mapSize;
     if (typeof encounter === "object") {
       this.dungeon = encounter.dungeon;
       this.mapSize = encounter.dungeon.mapSize;

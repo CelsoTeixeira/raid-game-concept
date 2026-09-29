@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import type { DungeonEncounter } from "./sim/dungeonWorld";
+import { DungeonWorld, type DungeonEncounter } from "./sim/dungeonWorld";
 import { DEFAULT_GROUP } from "./sim/group";
+import type { MapSize } from "./sim/dungeon";
 import {
   destroyEquippedItem,
   destroyStorageItem,
@@ -11,6 +12,7 @@ import {
   recruitFirstCharacter,
   unequipGuildItem,
   type GuildEquipResult,
+  type GuildCharacter,
 } from "./sim/guild";
 import type { InventoryPlacement } from "./sim/inventory";
 import { mulberry32 } from "./sim/items";
@@ -31,10 +33,19 @@ export function App() {
   const [screen, setScreen] = useState<Screen>("start");
   const [guild, setGuild] = useState(loadPersistedGuild);
   const [encounter, setEncounter] = useState<DungeonEncounter | undefined>();
+  const [pickedCharacterIds, setPickedCharacterIds] = useState<string[]>([]);
+  const [groupMapSize, setGroupMapSize] = useState<MapSize>("medium");
+  const [fieldGroup, setFieldGroup] = useState(DEFAULT_GROUP);
+  const [fieldReturnScreen, setFieldReturnScreen] = useState<"dungeon" | "groupSelect">("dungeon");
 
   useEffect(() => {
     persistGuild(guild);
   }, [guild]);
+
+  useEffect(() => {
+    const guildCharacterIds = new Set(guild.characters.map((character) => character.id));
+    setPickedCharacterIds((current) => current.filter((id) => guildCharacterIds.has(id)));
+  }, [guild.characters]);
 
   const moveGuildStorageItem = (itemId: string, placement: InventoryPlacement) => {
     setGuild((current) => moveStorageItem(current, itemId, placement));
@@ -95,7 +106,27 @@ export function App() {
     );
   }
   if (screen === "groupSelect") {
-    return <GroupSelectScreen guild={guild} onBack={() => setScreen("guild")} />;
+    return (
+      <GroupSelectScreen
+        guild={guild}
+        pickedIds={pickedCharacterIds}
+        mapSize={groupMapSize}
+        onPick={(characterId) =>
+          setPickedCharacterIds((current) =>
+            current.length >= 5 || current.includes(characterId) ? current : [...current, characterId],
+          )
+        }
+        onRemove={(characterId) => setPickedCharacterIds((current) => current.filter((id) => id !== characterId))}
+        onMapSizeChange={setGroupMapSize}
+        onStart={(group: GuildCharacter[], size) => {
+          setFieldGroup(group);
+          setFieldReturnScreen("groupSelect");
+          setEncounter(new DungeonWorld(undefined, size).encounter());
+          setScreen("field");
+        }}
+        onBack={() => setScreen("guild")}
+      />
+    );
   }
   if (screen === "dungeon") {
     return (
@@ -104,6 +135,8 @@ export function App() {
         encounter={encounter}
         onLeave={() => setScreen("start")}
         onStartGame={(nextEncounter) => {
+          setFieldGroup(DEFAULT_GROUP);
+          setFieldReturnScreen("dungeon");
           setEncounter(nextEncounter);
           setScreen("field");
         }}
@@ -116,5 +149,5 @@ export function App() {
   if (screen === "characters") {
     return <CharacterDebugScreen onBack={() => setScreen("start")} />;
   }
-  return <FieldScreen group={DEFAULT_GROUP} encounter={encounter!} onLeave={() => setScreen("dungeon")} />;
+  return <FieldScreen group={fieldGroup} encounter={encounter!} onLeave={() => setScreen(fieldReturnScreen)} />;
 }

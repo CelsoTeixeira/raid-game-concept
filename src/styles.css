@@ -264,6 +264,78 @@ ul {
 .member-card[data-rarity="orange"] {
   border-color: #fb923c;
 }
+.group-select-screen {
+  min-height: 100%;
+  height: 100vh;
+  justify-content: flex-start;
+  overflow-y: auto;
+  padding: 24px 16px;
+}
+.group-select-screen h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.group-select-size,
+.group-select-spots,
+.group-select-roster {
+  width: min(100%, 960px);
+}
+.group-select-size .row-inline {
+  justify-content: center;
+  margin: 0;
+}
+.group-slots {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+.group-slot {
+  width: 100%;
+  min-width: 0;
+  min-height: 150px;
+  padding: 10px 4px;
+}
+.group-slot-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #4b5563;
+  background: #0c0c0c;
+  color: #9ca3af;
+}
+.group-select-character-list {
+  list-style: none;
+  padding: 0;
+}
+.member-card.is-picked,
+.group-select-screen button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.group-select-screen button:disabled:hover {
+  background: #0c0c0c;
+}
+.member-card .member-card-picked-label {
+  color: #facc15;
+  font-weight: 700;
+}
+@media (max-width: 560px) {
+  .group-select-screen {
+    padding: 20px 8px;
+  }
+  .group-slots {
+    gap: 4px;
+  }
+  .group-slot {
+    min-height: 128px;
+    gap: 4px;
+    padding: 6px 2px;
+    font-size: 11px;
+  }
+  .group-slot span {
+    font-size: 10px;
+  }
+}
 .character-panel {
   margin-top: 20px;
   padding: 18px;
