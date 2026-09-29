@@ -1,4 +1,4 @@
-import { appearanceFrames, getMemberAppearance } from "../appearance";
+import { outfitFromEquipment } from "../art";
 import {
   EQUIPMENT_SLOT_LABELS,
   EQUIPMENT_SLOTS,
@@ -13,7 +13,8 @@ import { formatItemBonuses, formatItemBonusesShort, formatWeapon, itemKindLabel 
 import { formatName, REGION_LABELS, SEX_LABELS } from "../sim/names";
 import { armorMitigation, isRanged, PRIMARY_STATS, STAT_HELPS, STAT_LABELS, UNARMED } from "../sim/stats";
 import type { ItemDrag, ItemDragHandlers, StartItemDrag } from "./itemDrag";
-import { SpriteStack } from "./SpriteStack";
+import { ArtCharacter } from "./ArtCharacter";
+import { ItemIconImage } from "./ItemIcon";
 
 function derivedStatsLine(character: Character): string {
   const combat = character.stats;
@@ -43,7 +44,6 @@ function slotDropClass(drag: ItemDrag | null, slot: EquipmentSlot): string {
 /** One guild character's stats and equipment. Gear moves between these slots and storage. */
 export function GuildCharacterPanel({
   character,
-  index,
   drag,
   startDrag,
   dragHandlers,
@@ -51,7 +51,6 @@ export function GuildCharacterPanel({
   onClose,
 }: {
   character: GuildCharacter;
-  index: number;
   drag: ItemDrag | null;
   startDrag: StartItemDrag;
   dragHandlers: ItemDragHandlers;
@@ -77,7 +76,7 @@ export function GuildCharacterPanel({
       </div>
       <div className="character-panel-content">
         <div className="character-panel-preview">
-          <SpriteStack frames={appearanceFrames(getMemberAppearance(character, index))} size={85} />
+          <ArtCharacter sex={character.sex} look={character.look} outfit={outfitFromEquipment(character.equipment)} scale={3} />
           <span>
             {mainHand ? GEAR_KINDS[mainHand.kind].label : "Unarmed"} · {isRanged(character.stats) ? "Ranged" : "Melee"}
           </span>
@@ -119,9 +118,14 @@ export function GuildCharacterPanel({
                         onDoubleClick={() => onUnequip(slot)}
                         {...dragHandlers}
                       >
-                        <span>{item.name}</span>
-                        <span className="item-kind">{itemKindLabel(item)}</span>
-                        <span className="equipment-slot-stats">{formatItemBonusesShort(item.bonuses)}</span>
+                        <span className="equipment-slot-icon" style={{ width: item.width * 26, height: item.height * 26 }}>
+                          <ItemIconImage item={item} scale={1} />
+                        </span>
+                        <span className="equipment-slot-text">
+                          <span>{item.name}</span>
+                          <span className="item-kind">{itemKindLabel(item)}</span>
+                          <span className="equipment-slot-stats">{formatItemBonusesShort(item.bonuses)}</span>
+                        </span>
                       </button>
                       <button
                         className="equipment-slot-unequip"

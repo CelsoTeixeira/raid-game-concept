@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
+import type { ArtLook } from "../art";
 import { characterWithEquipment, characterWithRole, createCharacter } from "./character";
 import { DEFAULT_GROUP } from "./group";
 import { HEALTH_PER_VITALITY } from "./stats";
 import { World } from "./world";
 
 const BASE = { vitality: 10, intelligence: 5, strength: 8, agility: 4 };
-const LOOK = { body: { col: 0, row: 0 }, hair: { col: 19, row: 0 }, facialHair: null };
+const LOOK: ArtLook = { build: "normal", skin: "light", hairStyle: "sweep", hairColor: "brown" };
 
 describe("cached combat stats", () => {
   it("derives combat numbers from base attributes, not from role", () => {

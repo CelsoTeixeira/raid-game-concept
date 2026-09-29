@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { isHeldKind, PLAIN_OUTFIT, rollArtLook, type ArtLook, type ArtOutfit, type HeldKind } from "../art";
+import { isHeldKind, PLAIN_OUTFIT, type ArtOutfit, type HeldKind } from "../art";
 import { CHARACTER_RARITY_POINTS, rollCharacter, type RolledCharacter } from "../sim/characterGen";
 import { ARMOR_FAMILIES, ARMOR_FAMILY_DEFS, GEAR_KINDS, gearKindsForSlot, type ArmorFamily } from "../sim/gearKinds";
 import { ITEM_RARITIES, RARITY_LABELS, type ItemRarity } from "../sim/inventory";
@@ -11,11 +11,7 @@ import { ArtCharacter } from "./ArtCharacter";
 type RegionFilter = "any" | Region;
 type SexFilter = "any" | Sex;
 
-/** `art` is a preview of the new layered look, rolled here only; saved characters keep their Kenney look. */
-type DebugCharacter = RolledCharacter & { key: string; art: ArtLook };
-
-/** Separate stream so the preview look does not shift names or stats for a seed. */
-const ART_SEED_SALT = 0x5bd1e995;
+type DebugCharacter = RolledCharacter & { key: string };
 
 type Option<T extends string> = { id: T; label: string };
 
@@ -72,7 +68,7 @@ function CharacterCard({ character, outfit }: { character: DebugCharacter; outfi
   const stats = bareStats(character);
   return (
     <article className="item-debug-card" data-rarity={character.rarity}>
-      <ArtCharacter sex={character.sex} look={character.art} outfit={outfit} scale={3} />
+      <ArtCharacter sex={character.sex} look={character.look} outfit={outfit} scale={3} />
       <strong>{formatName(character.name)}</strong>
       <span>
         {RARITY_LABELS[character.rarity]} · {SEX_LABELS[character.sex]} · {REGION_LABELS[character.region]}
@@ -104,7 +100,6 @@ export function CharacterDebugScreen({ onBack }: { onBack: () => void }) {
   /** Rolls in order against the name ledger so no full name repeats on this screen. */
   const roll = (rarities: readonly ItemRarity[], keyPrefix: string): DebugCharacter[] => {
     const rng = mulberry32(seedValue);
-    const artRng = mulberry32((seedValue ^ ART_SEED_SALT) >>> 0);
     const taken = new Set(takenNames);
     const batch = rarities.map((pinned, index) => {
       const character = rollCharacter({
@@ -115,7 +110,7 @@ export function CharacterDebugScreen({ onBack }: { onBack: () => void }) {
         takenNames: taken,
       });
       taken.add(nameKey(character.name));
-      return { ...character, key: `${keyPrefix}-${index}`, art: rollArtLook(artRng, character.sex) };
+      return { ...character, key: `${keyPrefix}-${index}` };
     });
     setTakenNames(taken);
     setCharacters((current) => [...batch, ...current].slice(0, 100));
@@ -288,7 +283,7 @@ export function CharacterDebugScreen({ onBack }: { onBack: () => void }) {
                 return (
                   <tr data-rarity={character.rarity} key={character.key}>
                     <td>
-                      <ArtCharacter sex={character.sex} look={character.art} outfit={outfit} scale={2} />
+                      <ArtCharacter sex={character.sex} look={character.look} outfit={outfit} scale={2} />
                     </td>
                     <td>{RARITY_LABELS[character.rarity]}</td>
                     <td>{formatName(character.name)}</td>

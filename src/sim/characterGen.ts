@@ -1,4 +1,4 @@
-import { rollCharacterLook, type CharacterLook } from "../appearance";
+import { rollArtLook, type ArtLook } from "../art";
 import type { ItemRarity } from "./inventory";
 import type { Rng } from "./items";
 import { REGIONS, rollName, SEXES, type CharacterName, type Region, type Sex } from "./names";
@@ -20,7 +20,7 @@ export type RolledCharacter = {
   region: Region;
   rarity: ItemRarity;
   baseAttributes: Attributes;
-  look: CharacterLook;
+  look: ArtLook;
 };
 
 export function rollCharacter(options: {
@@ -39,6 +39,6 @@ export function rollCharacter(options: {
     region,
     rarity,
     baseAttributes: rollBaseAttributes(rng, CHARACTER_RARITY_POINTS[rarity]),
-    look: rollCharacterLook(rng, sex),
+    look: rollArtLook(rng, sex),
   };
 }

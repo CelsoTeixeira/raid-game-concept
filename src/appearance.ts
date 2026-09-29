@@ -1,8 +1,11 @@
+import type { HairColor, HairStyle, Skin } from "./art";
 import type { GearKindId } from "./sim/gearKinds";
 import type { GroupMember } from "./sim/group";
-import type { Rng } from "./sim/items";
-import type { Sex } from "./sim/names";
 
+/**
+ * Kenney 16px sheet frames for the Phaser field. Characters carry the layered art look;
+ * until the field draws that art it shows a Kenney stand-in derived from it (D14).
+ */
 export type SpriteFrame = { col: number; row: number };
 
 export type CharacterAppearance = {
@@ -35,7 +38,7 @@ export const ENEMY_APPEARANCE: CharacterAppearance = {
   equipment: [],
 };
 
-/** Held-item sprites by gear kind. Worn kinds (chest, pants, jewelry, tome) draw nothing yet. */
+/** Held-item sprites by gear kind. Worn kinds (chest, pants, jewelry, tome) draw nothing. */
 const HELD_FRAMES: Partial<Record<GearKindId, SpriteFrame>> = {
   sword: { col: 44, row: 6 },
   axe: { col: 49, row: 1 },
@@ -47,6 +50,30 @@ const HELD_FRAMES: Partial<Record<GearKindId, SpriteFrame>> = {
   shield: { col: 37, row: 0 },
 };
 
+const KENNEY_BODY: Record<Skin, SpriteFrame> = {
+  light: { col: 0, row: 0 },
+  mid: { col: 0, row: 1 },
+  dark: { col: 0, row: 2 },
+};
+
+/** Top-left of each 4x4 Kenney hair block. */
+const KENNEY_HAIR_BLOCK: Record<HairColor, SpriteFrame> = {
+  brown: { col: 19, row: 0 },
+  ginger: { col: 23, row: 0 },
+  blonde: { col: 19, row: 4 },
+  black: { col: 23, row: 4 },
+  ash: { col: 19, row: 8 },
+};
+
+/** Offset inside a hair block; the beard styles use Kenney hair with the beard drawn in. */
+const KENNEY_HAIR: Record<HairStyle, SpriteFrame> = {
+  sweep: { col: 0, row: 0 },
+  long: { col: 1, row: 0 },
+  bob: { col: 2, row: 2 },
+  cropBeard: { col: 0, row: 2 },
+  sweepBeard: { col: 3, row: 0 },
+};
+
 function equipmentFrames(member: GroupMember): SpriteFrame[] {
   const held = [member.equipment.mainHand, member.equipment.offHand];
   return held.flatMap((item) => {
@@ -56,10 +83,13 @@ function equipmentFrames(member: GroupMember): SpriteFrame[] {
 }
 
 export function getMemberAppearance(member: GroupMember, index: number): CharacterAppearance {
-  const outfit = OUTFITS[index % OUTFITS.length]!;
+  const block = KENNEY_HAIR_BLOCK[member.look.hairColor];
+  const style = KENNEY_HAIR[member.look.hairStyle];
   return {
-    ...member.look,
-    ...outfit,
+    body: KENNEY_BODY[member.look.skin],
+    hair: { col: block.col + style.col, row: block.row + style.row },
+    facialHair: null,
+    ...OUTFITS[index % OUTFITS.length]!,
     equipment: equipmentFrames(member),
   };
 }
@@ -73,111 +103,4 @@ export function appearanceFrames(appearance: CharacterAppearance): SpriteFrame[]
     appearance.hair,
   ];
   return [...layers.filter((frame): frame is SpriteFrame => frame !== null), ...appearance.equipment];
-}
-
-/** Rolled per character. Sex only changes the hair pools. */
-export type CharacterLook = {
-  body: SpriteFrame;
-  hair: SpriteFrame;
-  facialHair: SpriteFrame | null;
-};
-
-/** Human skin tones only; the green body stays enemy-only. */
-const SKIN_BODIES: readonly SpriteFrame[] = [
-  { col: 0, row: 0 },
-  { col: 0, row: 1 },
-  { col: 0, row: 2 },
-];
-
-/** Top-left of each 4x4 hair block: brown, ginger, blonde, black, white. */
-const HAIR_COLOR_BLOCKS: readonly SpriteFrame[] = [
-  { col: 19, row: 0 },
-  { col: 23, row: 0 },
-  { col: 19, row: 4 },
-  { col: 23, row: 4 },
-  { col: 19, row: 8 },
-];
-
-/** Offsets inside a hair block. */
-const HAIR = {
-  short: { col: 0, row: 0 },
-  long: { col: 1, row: 0 },
-  parted: { col: 0, row: 1 },
-  braids: { col: 1, row: 1 },
-  sideBraid: { col: 2, row: 1 },
-  twinBraids: { col: 3, row: 1 },
-  topknot: { col: 1, row: 2 },
-  bowl: { col: 2, row: 2 },
-  balding: { col: 3, row: 2 },
-  // Hair with facial hair drawn in.
-  moustache: { col: 2, row: 0 },
-  fullBeard: { col: 3, row: 0 },
-  shortBeard: { col: 0, row: 2 },
-} satisfies Record<string, SpriteFrame>;
-
-const HAIR_BY_SEX: Record<Sex, readonly SpriteFrame[]> = {
-  male: [
-    HAIR.short,
-    HAIR.long,
-    HAIR.parted,
-    HAIR.topknot,
-    HAIR.bowl,
-    HAIR.balding,
-    HAIR.moustache,
-    HAIR.fullBeard,
-    HAIR.shortBeard,
-  ],
-  female: [HAIR.short, HAIR.long, HAIR.braids, HAIR.sideBraid, HAIR.twinBraids, HAIR.topknot, HAIR.bowl],
-};
-
-const HAIR_WITH_FACIAL: readonly SpriteFrame[] = [HAIR.moustache, HAIR.fullBeard, HAIR.shortBeard];
-
-/** Facial-hair-only offsets: big beard, moustache, long beard, goatee. */
-const FACIAL_HAIR: readonly SpriteFrame[] = [
-  { col: 0, row: 3 },
-  { col: 1, row: 3 },
-  { col: 2, row: 3 },
-  { col: 3, row: 3 },
-];
-
-const FACIAL_HAIR_CHANCE = 0.4;
-
-function pickFrame(rng: Rng, frames: readonly SpriteFrame[]): SpriteFrame {
-  return frames[Math.floor(rng.next() * frames.length)]!;
-}
-
-function inBlock(block: SpriteFrame, offset: SpriteFrame): SpriteFrame {
-  return { col: block.col + offset.col, row: block.row + offset.row };
-}
-
-export function rollCharacterLook(rng: Rng, sex: Sex): CharacterLook {
-  const body = pickFrame(rng, SKIN_BODIES);
-  const block = pickFrame(rng, HAIR_COLOR_BLOCKS);
-  const hair = pickFrame(rng, HAIR_BY_SEX[sex]);
-  const canAddFacial = sex === "male" && !HAIR_WITH_FACIAL.includes(hair);
-  const facialHair = canAddFacial && rng.next() < FACIAL_HAIR_CHANCE ? pickFrame(rng, FACIAL_HAIR) : null;
-  return {
-    body,
-    hair: inBlock(block, hair),
-    facialHair: facialHair ? inBlock(block, facialHair) : null,
-  };
-}
-
-/** A look in the first outfit with nothing held. */
-export function lookFrames(look: CharacterLook): SpriteFrame[] {
-  return appearanceFrames({ ...look, ...OUTFITS[0]!, equipment: [] });
-}
-
-function isSpriteFrame(value: unknown): value is SpriteFrame {
-  if (typeof value !== "object" || value === null) return false;
-  const { col, row } = value as Record<string, unknown>;
-  return Number.isInteger(col) && Number.isInteger(row) && (col as number) >= 0 && (row as number) >= 0;
-}
-
-export function parseCharacterLook(value: unknown): CharacterLook | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  const { body, hair, facialHair } = value as Record<string, unknown>;
-  if (!isSpriteFrame(body) || !isSpriteFrame(hair)) return null;
-  if (facialHair !== null && !isSpriteFrame(facialHair)) return null;
-  return { body, hair, facialHair };
 }

@@ -130,23 +130,6 @@ button:hover {
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.member-preview {
-  position: relative;
-  width: 80px;
-  height: 80px;
-  display: block;
-  image-rendering: pixelated;
-}
-.member-sprite-layer {
-  position: absolute;
-  inset: 0;
-  width: 80px;
-  height: 80px;
-  display: block;
-  background-image: url("./assets/roguelikeChar_transparent.png");
-  background-repeat: no-repeat;
-  background-size: 4590px 1015px;
-}
 ul {
   margin: 0;
   padding-left: 16px;
@@ -390,19 +373,30 @@ ul {
 }
 .equipment-slot-gear {
   display: flex;
-  flex-direction: column;
-  align-items: start;
-  gap: 2px;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
   padding: 6px 8px;
-  border: 1px solid #9ca3af;
-  background: #374151;
+  border: 2px solid #9ca3af;
+  background: #111827;
   color: #e5e7eb;
   font-size: 12px;
   font-weight: 700;
   text-align: left;
   touch-action: none;
   user-select: none;
+}
+.equipment-slot-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+}
+.equipment-slot-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 .equipment-slot-gear.is-dragging {
   opacity: 0.55;
@@ -413,24 +407,16 @@ ul {
   opacity: 0.92;
 }
 .equipment-slot-gear[data-rarity="green"] {
-  background: #14532d;
   border-color: #4ade80;
-  color: #dcfce7;
 }
 .equipment-slot-gear[data-rarity="blue"] {
-  background: #1e3a8a;
   border-color: #60a5fa;
-  color: #dbeafe;
 }
 .equipment-slot-gear[data-rarity="purple"] {
-  background: #581c87;
   border-color: #c084fc;
-  color: #f3e8ff;
 }
 .equipment-slot-gear[data-rarity="orange"] {
-  background: #7c2d12;
   border-color: #fb923c;
-  color: #ffedd5;
 }
 .equipment-slot-unequip {
   align-self: flex-end;
@@ -487,28 +473,14 @@ ul {
 .group-bag-item {
   z-index: 2;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
   min-width: 0;
   min-height: 0;
-  padding: 4px;
+  padding: 0;
   overflow: hidden;
-  border: 1px solid #9ca3af;
-  background: #374151;
-  color: #e5e7eb;
-  font-size: clamp(10px, 2.3vw, 12px);
-  font-weight: 700;
-  line-height: 1.1;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: normal;
-}
-.group-bag-item-name,
-.group-bag-item-stats {
-  min-width: 0;
-  max-width: 100%;
+  border: 2px solid #9ca3af;
+  background: rgba(17, 24, 39, 0.85);
 }
 .item-kind {
   font-size: 9px;
@@ -517,35 +489,20 @@ ul {
   text-transform: uppercase;
   opacity: 0.7;
 }
-.group-bag-item-stats {
-  font-size: clamp(9px, 2vw, 11px);
-  font-weight: 600;
-  opacity: 0.92;
-}
 .group-bag-item[data-rarity="gray"] {
-  background: #374151;
   border-color: #9ca3af;
-  color: #e5e7eb;
 }
 .group-bag-item[data-rarity="green"] {
-  background: #14532d;
   border-color: #4ade80;
-  color: #dcfce7;
 }
 .group-bag-item[data-rarity="blue"] {
-  background: #1e3a8a;
   border-color: #60a5fa;
-  color: #dbeafe;
 }
 .group-bag-item[data-rarity="purple"] {
-  background: #581c87;
   border-color: #c084fc;
-  color: #f3e8ff;
 }
 .group-bag-item[data-rarity="orange"] {
-  background: #7c2d12;
   border-color: #fb923c;
-  color: #ffedd5;
 }
 .group-bag-item.is-dragging {
   opacity: 0.55;
@@ -718,8 +675,9 @@ ul {
   border: 2px solid #9ca3af;
   background: #111827;
 }
-.item-icon img {
+.item-icon-image {
   image-rendering: pixelated;
+  pointer-events: none;
 }
 .item-icon[data-rarity="green"] {
   border-color: #4ade80;

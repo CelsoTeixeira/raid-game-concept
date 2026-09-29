@@ -1,4 +1,4 @@
-import { parseCharacterLook } from "../appearance";
+import { parseArtLook, rollArtLook, type ArtLook } from "../art";
 import {
   createCharacter,
   EQUIPMENT_SLOTS,
@@ -20,7 +20,7 @@ import {
   type ItemRarity,
 } from "./inventory";
 import { rollCharacter } from "./characterGen";
-import type { Rng } from "./items";
+import { mulberry32, type Rng } from "./items";
 import { REGIONS, SEXES, type CharacterName, type Region, type Sex } from "./names";
 import { PRIMARY_STATS } from "./stats";
 import type { Attributes, Role } from "./types";
@@ -167,15 +167,22 @@ function parseEquipment(value: unknown, seen: Set<string>): Equipment {
   return equipment;
 }
 
+/** Characters saved with a Kenney look re-roll only the look, stably from their id (D11). */
+function lookFromId(id: string, sex: Sex): ArtLook {
+  let hash = 0;
+  for (let index = 0; index < id.length; index += 1) hash = (Math.imul(hash, 31) + id.charCodeAt(index)) | 0;
+  return rollArtLook(mulberry32(hash >>> 0), sex);
+}
+
 function parseCharacter(value: unknown, seenCharacters: Set<string>, seenItems: Set<string>): GuildCharacter | null {
   if (!isRecord(value)) return null;
   const { id, role, sex, region, rarity } = value;
   const name = parseName(value.name);
   const baseAttributes = parseAttributes(value.baseAttributes);
-  const look = parseCharacterLook(value.look);
   if (typeof id !== "string" || id.length === 0 || seenCharacters.has(id)) return null;
-  if (!name || !baseAttributes || !look) return null;
+  if (!name || !baseAttributes) return null;
   if (!isRole(role) || !isSex(sex) || !isRegion(region) || !isItemRarity(rarity)) return null;
+  const look = parseArtLook(value.look) ?? lookFromId(id, sex);
   seenCharacters.add(id);
   const character = refreshCombat({
     id,

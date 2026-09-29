@@ -1,4 +1,4 @@
-import { rollCharacterLook } from "../appearance";
+import { rollArtLook } from "../art";
 import {
   createCharacter,
   EQUIPMENT_SLOTS,
@@ -56,6 +56,6 @@ export const DEFAULT_GROUP: Character[] = DEFAULT_PLANS.map((plan, index) => {
     baseAttributes: rollBaseAttributes(mulberry32(index + 1)),
     equipment: defaultEquipment(index, plan),
     sex,
-    look: rollCharacterLook(lookRng, sex),
+    look: rollArtLook(lookRng, sex),
   });
 });

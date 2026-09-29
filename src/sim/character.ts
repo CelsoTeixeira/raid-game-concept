@@ -1,4 +1,4 @@
-import type { CharacterLook } from "../appearance";
+import type { ArtLook } from "../art";
 import { GEAR_KINDS, type GearSlot } from "./gearKinds";
 import type { UnplacedItem } from "./inventory";
 import type { Sex } from "./names";
@@ -60,7 +60,7 @@ export type CharacterDraft = {
   equipment: Equipment;
   role: Role;
   sex: Sex;
-  look: CharacterLook;
+  look: ArtLook;
 };
 
 /**

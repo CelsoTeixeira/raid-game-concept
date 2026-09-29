@@ -1,4 +1,5 @@
-import { ARMOR_FAMILIES, type ArmorFamily, type GearKindId } from "./sim/gearKinds";
+import type { Equipment, EquippedItem } from "./sim/character";
+import { ARMOR_FAMILIES, isArmorFamily, type ArmorFamily, type GearKindId } from "./sim/gearKinds";
 import type { Rng } from "./sim/items";
 import type { Sex } from "./sim/names";
 
@@ -56,6 +57,31 @@ export function rollArtLook(rng: Rng, sex: Sex): ArtLook {
     skin: pick(rng, SKINS),
     hairStyle: pick(rng, HAIR_BY_SEX[sex]),
     hairColor: pick(rng, HAIR_COLORS),
+  };
+}
+
+function oneOf<T extends string>(values: readonly T[], value: unknown): value is T {
+  return typeof value === "string" && (values as readonly string[]).includes(value);
+}
+
+export function parseArtLook(value: unknown): ArtLook | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const { build, skin, hairStyle, hairColor } = value as Record<string, unknown>;
+  if (!oneOf(BODY_BUILDS, build) || !oneOf(SKINS, skin)) return null;
+  if (!oneOf(HAIR_STYLES, hairStyle) || !oneOf(HAIR_COLORS, hairColor)) return null;
+  return { build, skin, hairStyle, hairColor };
+}
+
+/** Equipped chest, pants, and helmet pick the outfit by subfamily; held kinds draw in the hands (D4). */
+export function outfitFromEquipment(equipment: Equipment): ArtOutfit {
+  const family = (item: EquippedItem | null) => (item && isArmorFamily(item.armorFamily) ? item.armorFamily : null);
+  const held = (item: EquippedItem | null) => (item && isHeldKind(item.kind) ? item.kind : null);
+  return {
+    chest: family(equipment.chest),
+    pants: family(equipment.pants),
+    helmet: family(equipment.head),
+    mainHand: held(equipment.mainHand),
+    offHand: held(equipment.offHand),
   };
 }
 

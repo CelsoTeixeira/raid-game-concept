@@ -1,29 +1,21 @@
 import { useRef, useState } from "react";
-import { appearanceFrames, getMemberAppearance } from "../appearance";
+import { outfitFromEquipment } from "../art";
 import type { EquipmentSlot } from "../sim/character";
 import { FIRST_RECRUIT_RARITY, type Guild, type GuildCharacter } from "../sim/guild";
 import { canOpenStarterChest, STARTER_CHEST_RARITY } from "../sim/starterChest";
 import { RARITY_LABELS, type InventoryPlacement } from "../sim/inventory";
 import { formatName, REGION_LABELS, SEX_LABELS } from "../sim/names";
 import { PRIMARY_STATS, STAT_LABELS } from "../sim/stats";
+import { ArtCharacter } from "./ArtCharacter";
 import { GuildCharacterPanel } from "./GuildCharacterPanel";
 import { useItemDrag, type DragSource, type DropTarget } from "./itemDrag";
-import { SpriteStack } from "./SpriteStack";
 import { StorageGrid } from "./StorageGrid";
 
-function GuildCharacterCard({
-  character,
-  index,
-  onOpen,
-}: {
-  character: GuildCharacter;
-  index: number;
-  onOpen: () => void;
-}) {
+function GuildCharacterCard({ character, onOpen }: { character: GuildCharacter; onOpen: () => void }) {
   return (
     <li>
       <button className="member-card" data-rarity={character.rarity} type="button" onClick={onOpen}>
-        <SpriteStack frames={appearanceFrames(getMemberAppearance(character, index))} size={64} />
+        <ArtCharacter sex={character.sex} look={character.look} outfit={outfitFromEquipment(character.equipment)} scale={2} />
         <strong>{formatName(character.name)}</strong>
         <span>
           {RARITY_LABELS[character.rarity]} · {SEX_LABELS[character.sex]} · {REGION_LABELS[character.region]}
@@ -62,8 +54,7 @@ export function GuildScreen({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
-  const selectedIndex = guild.characters.findIndex((character) => character.id === selectedId);
-  const selected = selectedIndex >= 0 ? guild.characters[selectedIndex] : undefined;
+  const selected = guild.characters.find((character) => character.id === selectedId);
 
   const equip = (itemId: string, slot?: EquipmentSlot) => {
     if (!selected) return;
@@ -105,7 +96,6 @@ export function GuildScreen({
           {selected ? (
             <GuildCharacterPanel
               character={selected}
-              index={selectedIndex}
               drag={drag}
               startDrag={start}
               dragHandlers={handlers}
@@ -141,10 +131,9 @@ export function GuildScreen({
                 </div>
               ) : (
                 <ul className="member-list guild-character-list">
-                  {guild.characters.map((character, index) => (
+                  {guild.characters.map((character) => (
                     <GuildCharacterCard
                       character={character}
-                      index={index}
                       key={character.id}
                       onOpen={() => openCharacter(character.id)}
                     />
