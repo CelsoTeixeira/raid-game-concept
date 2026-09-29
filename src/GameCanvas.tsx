@@ -18,10 +18,9 @@ export function GameCanvas({
     const game = new Phaser.Game({
       type: Phaser.AUTO,
       parent: host.current,
-      width: 960,
-      height: 640,
       backgroundColor: "#1a1f16",
       audio: { noAudio: true },
+      scale: { mode: Phaser.Scale.RESIZE },
     });
     game.scene.add("raid", RaidScene, false);
     game.scene.start("raid", { group, encounter });
@@ -30,5 +29,5 @@ export function GameCanvas({
     };
   }, []);
 
-  return <div ref={host} className="canvas-host" />;
+  return <div ref={host} className="field-canvas-host" />;
 }

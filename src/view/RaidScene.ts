@@ -10,6 +10,7 @@ import { isRanged } from "../sim/stats";
 import type { SimUnit } from "../sim/unit";
 import { World } from "../sim/world";
 import { setRaidCommands } from "./commands";
+import { CameraController } from "./cameraController";
 import { drawPortal } from "./portal";
 import { HealFxLayer } from "./healFx";
 import { HitFxLayer } from "./hitFx";
@@ -57,6 +58,7 @@ export class RaidScene extends Phaser.Scene {
   private hits = new HitFxLayer(this);
   private moveHeld = false;
   private shift = false;
+  private cameraController!: CameraController;
 
   constructor() {
     super("raid");
@@ -79,9 +81,32 @@ export class RaidScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(0x1a1f16);
     const worldW = this.dungeon.cols * TILE;
     const worldH = this.dungeon.rows * TILE;
-    this.cameras.main.setBounds(0, 0, worldW, worldH);
-    this.cameras.main.setZoom(Math.min(this.scale.width / worldW, this.scale.height / worldH));
-    this.cameras.main.centerOn(worldW / 2, worldH / 2);
+    const friendlies = this.world.units.filter(
+      (unit) => unit.side === "friendly" && unit.stats.health > 0,
+    );
+    const spawnFocus = friendlies.length > 0
+      ? {
+          x: friendlies.reduce((sum, unit) => sum + unit.x, 0) / friendlies.length,
+          y: friendlies.reduce((sum, unit) => sum + unit.y, 0) / friendlies.length,
+        }
+      : { x: worldW / 2, y: worldH / 2 };
+    this.cameraController = new CameraController(
+      this,
+      worldW,
+      worldH,
+      spawnFocus,
+      () => {
+        const selected = this.world.units.filter(
+          (unit) => unit.side === "friendly" && unit.selected && unit.stats.health > 0,
+        );
+        if (selected.length === 0) return null;
+        return {
+          x: selected.reduce((sum, unit) => sum + unit.x, 0) / selected.length,
+          y: selected.reduce((sum, unit) => sum + unit.y, 0) / selected.length,
+        };
+      },
+      () => this.moveHeld,
+    );
     this.drawField();
     this.boxGfx = this.add.graphics().setDepth(20);
     this.previewGfx = this.add.graphics().setDepth(21);
@@ -159,6 +184,7 @@ export class RaidScene extends Phaser.Scene {
   }
 
   update(_t: number, delta: number): void {
+    this.cameraController.update(delta);
     this.drawBox();
     this.drawMovePreview();
     this.world.tick(delta);
