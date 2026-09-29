@@ -4,11 +4,12 @@ import type { EquipmentSlot } from "../sim/character";
 import type { DebugGearRequest } from "../sim/debugGear";
 import { FIRST_RECRUIT_RARITY, type Guild, type GuildCharacter } from "../sim/guild";
 import { canOpenStarterChest, STARTER_CHEST_RARITY } from "../sim/starterChest";
-import { RARITY_LABELS, type InventoryPlacement } from "../sim/inventory";
+import { BAG_COLUMNS, RARITY_LABELS, type InventoryPlacement } from "../sim/inventory";
 import { formatName, REGION_LABELS, SEX_LABELS } from "../sim/names";
 import { PRIMARY_STATS, STAT_LABELS } from "../sim/stats";
 import { ArtCharacter } from "./ArtCharacter";
 import { DebugGearPanel } from "./DebugGearPanel";
+import { DragGhost } from "./DragGhost";
 import { GuildCharacterPanel } from "./GuildCharacterPanel";
 import { useItemDrag, type DragSource, type DropTarget } from "./itemDrag";
 import { StorageGrid } from "./StorageGrid";
@@ -95,6 +96,7 @@ export function GuildScreen({
   };
 
   const { drag, start, handlers } = useItemDrag(boardRef, handleDrop);
+  const cellSize = drag && boardRef.current ? boardRef.current.getBoundingClientRect().width / BAG_COLUMNS : 0;
 
   const openCharacter = (id: string | null) => {
     setSelectedId(id);
@@ -175,6 +177,8 @@ export function GuildScreen({
           <DebugGearPanel onAdd={(requests) => setNotice(onAddDebugGear(requests))} />
         </div>
       </div>
+
+      <DragGhost drag={drag} cellSize={cellSize} />
 
       <div className="screen-actions">
         <button type="button" onClick={onPlay}>

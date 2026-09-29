@@ -18,6 +18,9 @@ export type ItemDrag = {
   grabOffsetX: number;
   grabOffsetY: number;
   target: DropTarget;
+  /** Pointer position in viewport pixels, for the drag ghost. */
+  x: number;
+  y: number;
 };
 
 export type ItemDragHandlers = {
@@ -28,13 +31,6 @@ export type ItemDragHandlers = {
 };
 
 export type StartItemDrag = (event: React.PointerEvent<HTMLElement>, source: DragSource) => void;
-
-function sameTarget(a: DropTarget, b: DropTarget): boolean {
-  if (a === null || b === null) return a === b;
-  if (a.to === "slot") return b.to === "slot" && a.slot === b.slot;
-  if (a.to === "trash") return b.to === "trash";
-  return b.to === "bag" && a.placement.x === b.placement.x && a.placement.y === b.placement.y;
-}
 
 /**
  * One pointer drag shared by the bag grid and the equipment slots.
@@ -117,6 +113,8 @@ export function useItemDrag(
       pointerId: event.pointerId,
       grabOffsetX,
       grabOffsetY,
+      x: event.clientX,
+      y: event.clientY,
       target:
         source.from === "bag"
           ? { to: "bag", placement: { x: source.item.x, y: source.item.y } }
@@ -128,9 +126,7 @@ export function useItemDrag(
     onPointerMove: (event) => {
       const active = dragRef.current;
       if (!active || active.pointerId !== event.pointerId) return;
-      const target = targetAt(event.clientX, event.clientY, active);
-      if (sameTarget(target, active.target)) return;
-      update({ ...active, target });
+      update({ ...active, target: targetAt(event.clientX, event.clientY, active), x: event.clientX, y: event.clientY });
     },
     onPointerUp: (event) => {
       const active = dragRef.current;
