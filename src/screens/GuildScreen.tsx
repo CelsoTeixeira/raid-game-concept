@@ -1,12 +1,14 @@
 import { useRef, useState } from "react";
 import { outfitFromEquipment } from "../art";
 import type { EquipmentSlot } from "../sim/character";
+import type { DebugGearRequest } from "../sim/debugGear";
 import { FIRST_RECRUIT_RARITY, type Guild, type GuildCharacter } from "../sim/guild";
 import { canOpenStarterChest, STARTER_CHEST_RARITY } from "../sim/starterChest";
 import { RARITY_LABELS, type InventoryPlacement } from "../sim/inventory";
 import { formatName, REGION_LABELS, SEX_LABELS } from "../sim/names";
 import { PRIMARY_STATS, STAT_LABELS } from "../sim/stats";
 import { ArtCharacter } from "./ArtCharacter";
+import { DebugGearPanel } from "./DebugGearPanel";
 import { GuildCharacterPanel } from "./GuildCharacterPanel";
 import { useItemDrag, type DragSource, type DropTarget } from "./itemDrag";
 import { StorageGrid } from "./StorageGrid";
@@ -33,6 +35,7 @@ export function GuildScreen({
   onMoveStorageItem,
   onRecruit,
   onOpenStarterChest,
+  onAddDebugGear,
   onEquipItem,
   onUnequipItem,
   onPlay,
@@ -44,6 +47,8 @@ export function GuildScreen({
   onRecruit: () => void;
   /** Opens the one-time starter chest. Returns the notice to show. */
   onOpenStarterChest: () => string;
+  /** Debug: generates the requested gear into storage. Returns the notice to show. */
+  onAddDebugGear: (requests: DebugGearRequest[]) => string;
   /** Returns why the item could not be equipped, or null on success. */
   onEquipItem: (characterId: string, itemId: string, slot?: EquipmentSlot) => string | null;
   /** Returns why the item could not be unequipped, or null on success. */
@@ -144,17 +149,20 @@ export function GuildScreen({
           )}
         </section>
 
-        <StorageGrid
-          items={guild.storage}
-          drag={drag}
-          boardRef={boardRef}
-          startDrag={start}
-          dragHandlers={handlers}
-          canEquip={selected !== undefined}
-          notice={notice}
-          onMoveItem={onMoveStorageItem}
-          onEquipItem={(itemId) => equip(itemId)}
-        />
+        <div className="guild-storage-column">
+          <StorageGrid
+            items={guild.storage}
+            drag={drag}
+            boardRef={boardRef}
+            startDrag={start}
+            dragHandlers={handlers}
+            canEquip={selected !== undefined}
+            notice={notice}
+            onMoveItem={onMoveStorageItem}
+            onEquipItem={(itemId) => equip(itemId)}
+          />
+          <DebugGearPanel onAdd={(requests) => setNotice(onAddDebugGear(requests))} />
+        </div>
       </div>
 
       <div className="screen-actions">

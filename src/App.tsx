@@ -12,6 +12,7 @@ import {
 } from "./sim/guild";
 import type { InventoryPlacement } from "./sim/inventory";
 import { mulberry32 } from "./sim/items";
+import { addDebugGear } from "./sim/debugGear";
 import { openStarterChest } from "./sim/starterChest";
 import { ROLE_LABELS } from "./sim/character";
 import { CharacterDebugScreen } from "./screens/CharacterDebugScreen";
@@ -68,6 +69,13 @@ export function App() {
           setGuild(result.guild);
           const received = result.items.map(({ role, item }) => `${item.name} (${ROLE_LABELS[role]})`);
           return `Starter chest: ${received.join(", ")}. Open a character to equip them.`;
+        }}
+        onAddDebugGear={(requests) => {
+          const result = addDebugGear(guild, requests, mulberry32(Date.now()));
+          setGuild(result.guild);
+          const added = result.added.map((item) => item.name).join(", ");
+          const skipped = result.skipped > 0 ? `${result.skipped} did not fit in storage.` : "";
+          return [added ? `Added ${added}.` : "", skipped].filter(Boolean).join(" ");
         }}
         onEquipItem={(characterId, itemId, slot) =>
           applyGuildResult(equipGuildItem(guild, characterId, itemId, slot))
