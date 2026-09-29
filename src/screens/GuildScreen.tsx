@@ -38,6 +38,8 @@ export function GuildScreen({
   onAddDebugGear,
   onEquipItem,
   onUnequipItem,
+  onDestroyStorageItem,
+  onDestroyEquippedItem,
   onPlay,
   onBack,
 }: {
@@ -53,6 +55,8 @@ export function GuildScreen({
   onEquipItem: (characterId: string, itemId: string, slot?: EquipmentSlot) => string | null;
   /** Returns why the item could not be unequipped, or null on success. */
   onUnequipItem: (characterId: string, slot: EquipmentSlot, placement?: InventoryPlacement) => string | null;
+  onDestroyStorageItem: (itemId: string) => void;
+  onDestroyEquippedItem: (characterId: string, slot: EquipmentSlot) => void;
   onPlay: () => void;
   onBack: () => void;
 }) {
@@ -72,6 +76,12 @@ export function GuildScreen({
   };
 
   const handleDrop = (source: DragSource, target: NonNullable<DropTarget>) => {
+    if (target.to === "trash") {
+      if (source.from === "bag") onDestroyStorageItem(source.item.id);
+      else if (selected) onDestroyEquippedItem(selected.id, source.slot);
+      setNotice(`Destroyed ${source.item.name}.`);
+      return;
+    }
     if (source.from === "bag") {
       if (target.to === "slot") {
         equip(source.item.id, target.slot);
@@ -160,6 +170,7 @@ export function GuildScreen({
             notice={notice}
             onMoveItem={onMoveStorageItem}
             onEquipItem={(itemId) => equip(itemId)}
+            showTrash
           />
           <DebugGearPanel onAdd={(requests) => setNotice(onAddDebugGear(requests))} />
         </div>

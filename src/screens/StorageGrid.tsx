@@ -37,6 +37,7 @@ function isDropValid(items: InventoryItem[], drag: ItemDrag, placement: Inventor
 function dragStatus(items: InventoryItem[], drag: ItemDrag): string {
   const { item } = drag.source;
   const { target } = drag;
+  if (target?.to === "trash") return `${item.name}: release to destroy it for good.`;
   if (target?.to === "bag") {
     const valid = isDropValid(items, drag, target.placement);
     return `${item.name}: ${valid ? "valid placement" : "blocked placement"}. Release to place or press Escape to cancel.`;
@@ -60,6 +61,7 @@ export function StorageGrid({
   startDrag,
   dragHandlers,
   canEquip = false,
+  showTrash = false,
   notice = null,
   onMoveItem,
   onEquipItem,
@@ -70,6 +72,8 @@ export function StorageGrid({
   startDrag: StartItemDrag;
   dragHandlers: ItemDragHandlers;
   canEquip?: boolean;
+  /** Shows a trash drop zone; the drop itself is handled by the screen's drag handler. */
+  showTrash?: boolean;
   notice?: string | null;
   onMoveItem: (itemId: string, placement: InventoryPlacement) => void;
   onEquipItem?: (itemId: string) => void;
@@ -106,7 +110,25 @@ export function StorageGrid({
             {BAG_COLUMNS} × {BAG_ROWS} slots
           </p>
         </div>
-        <span className="group-bag-count">{items.length} items</span>
+        <div className="group-bag-heading-actions">
+          <span className="group-bag-count">{items.length} items</span>
+          {showTrash ? (
+            <div
+              className={`item-trash ${drag?.target?.to === "trash" ? "is-active" : ""}`}
+              data-item-trash
+              aria-label="Trash: drag an item here to destroy it"
+            >
+              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+                <path
+                  d="M6 1h4l1 1h3v2H2V2h3zM3 5h10l-1 10H4zm3 2v6h1V7zm3 0v6h1V7z"
+                  fill="currentColor"
+                  fillRule="evenodd"
+                />
+              </svg>
+              Trash
+            </div>
+          ) : null}
+        </div>
       </div>
       <div
         className="group-bag-board"

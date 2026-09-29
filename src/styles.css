@@ -487,6 +487,22 @@ ul {
   margin-top: 2px;
   white-space: nowrap;
 }
+.item-trash {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px dashed #6b7280;
+  color: #9ca3af;
+  font-size: 12px;
+  user-select: none;
+}
+.item-trash.is-active {
+  border-style: solid;
+  border-color: #ef4444;
+  background: #450a0a;
+  color: #fecaca;
+}
 .group-bag-heading-actions button {
   padding: 6px 10px;
   font-size: 12px;

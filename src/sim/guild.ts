@@ -1,5 +1,6 @@
 import { parseArtLook, rollArtLook, type ArtLook } from "../art";
 import {
+  characterWithEquipment,
   createCharacter,
   EQUIPMENT_SLOTS,
   emptyEquipment,
@@ -112,6 +113,24 @@ export function unequipGuildItem(
   const character = guild.characters.find((current) => current.id === characterId);
   if (!character) return { ok: false, reason: "That character is no longer in the guild." };
   return applyEquip(guild, characterId, unequipToBag(guild.storage, character, slot, placement));
+}
+
+/** Destroys a storage item for good. */
+export function destroyStorageItem(guild: Guild, itemId: string): Guild {
+  const storage = guild.storage.filter((item) => item.id !== itemId);
+  return storage.length === guild.storage.length ? guild : { ...guild, storage };
+}
+
+/** Destroys an equipped item for good; the character's combat stats refresh. */
+export function destroyEquippedItem(guild: Guild, characterId: string, slot: EquipmentSlot): Guild {
+  return {
+    ...guild,
+    characters: guild.characters.map((character) =>
+      character.id === characterId && character.equipment[slot]
+        ? { ...character, ...characterWithEquipment(character, slot, null) }
+        : character,
+    ),
+  };
 }
 
 export function moveStorageItem(guild: Guild, itemId: string, placement: InventoryPlacement): Guild {

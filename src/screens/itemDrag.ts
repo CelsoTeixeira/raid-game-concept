@@ -9,6 +9,7 @@ export type DragSource =
 export type DropTarget =
   | { to: "bag"; placement: InventoryPlacement }
   | { to: "slot"; slot: EquipmentSlot }
+  | { to: "trash" }
   | null;
 
 export type ItemDrag = {
@@ -31,12 +32,13 @@ export type StartItemDrag = (event: React.PointerEvent<HTMLElement>, source: Dra
 function sameTarget(a: DropTarget, b: DropTarget): boolean {
   if (a === null || b === null) return a === b;
   if (a.to === "slot") return b.to === "slot" && a.slot === b.slot;
+  if (a.to === "trash") return b.to === "trash";
   return b.to === "bag" && a.placement.x === b.placement.x && a.placement.y === b.placement.y;
 }
 
 /**
  * One pointer drag shared by the bag grid and the equipment slots.
- * Slots mark themselves with `data-equipment-slot`; the bag target comes from `boardRef`.
+ * Slots mark themselves with `data-equipment-slot`, the trash with `data-item-trash`; the bag target comes from `boardRef`.
  */
 export function useItemDrag(
   boardRef: RefObject<HTMLDivElement | null>,
@@ -78,7 +80,9 @@ export function useItemDrag(
   }, []);
 
   const targetAt = (clientX: number, clientY: number, active: ItemDrag): DropTarget => {
-    const slotElement = document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>("[data-equipment-slot]");
+    const hit = document.elementFromPoint(clientX, clientY);
+    if (hit?.closest("[data-item-trash]")) return { to: "trash" };
+    const slotElement = hit?.closest<HTMLElement>("[data-equipment-slot]");
     if (slotElement) return { to: "slot", slot: slotElement.dataset.equipmentSlot as EquipmentSlot };
 
     const board = boardRef.current;

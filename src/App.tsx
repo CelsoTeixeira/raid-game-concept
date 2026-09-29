@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import type { DungeonEncounter } from "./sim/dungeonWorld";
 import { DEFAULT_GROUP } from "./sim/group";
 import {
+  destroyEquippedItem,
+  destroyStorageItem,
   equipGuildItem,
   loadPersistedGuild,
   moveStorageItem,
@@ -82,6 +84,10 @@ export function App() {
         }
         onUnequipItem={(characterId, slot, placement) =>
           applyGuildResult(unequipGuildItem(guild, characterId, slot, placement))
+        }
+        onDestroyStorageItem={(itemId) => setGuild((current) => destroyStorageItem(current, itemId))}
+        onDestroyEquippedItem={(characterId, slot) =>
+          setGuild((current) => destroyEquippedItem(current, characterId, slot))
         }
         onPlay={() => setScreen("groupSelect")}
         onBack={() => setScreen("start")}
