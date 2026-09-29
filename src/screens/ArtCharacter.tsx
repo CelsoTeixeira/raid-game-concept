@@ -10,7 +10,7 @@ export function ArtCharacter({ sex, look, outfit, scale }: { sex: Sex; look: Art
       {artLayers(sex, look, outfit).map((layer) => (
         <span
           className="art-layer"
-          key={layer.url}
+          key={layer.key}
           style={{
             backgroundImage: `url(${layer.url})`,
             backgroundSize: `${layer.cols * width}px ${layer.rows * height}px`,

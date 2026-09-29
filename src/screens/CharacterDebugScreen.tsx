@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { PLAIN_OUTFIT, rollArtLook, type ArtLook, type ArtOutfit } from "../art";
+import { isHeldKind, PLAIN_OUTFIT, rollArtLook, type ArtLook, type ArtOutfit, type HeldKind } from "../art";
 import { CHARACTER_RARITY_POINTS, rollCharacter, type RolledCharacter } from "../sim/characterGen";
-import { ARMOR_FAMILIES, ARMOR_FAMILY_DEFS, type ArmorFamily } from "../sim/gearKinds";
+import { ARMOR_FAMILIES, ARMOR_FAMILY_DEFS, GEAR_KINDS, gearKindsForSlot, type ArmorFamily } from "../sim/gearKinds";
 import { ITEM_RARITIES, RARITY_LABELS, type ItemRarity } from "../sim/inventory";
 import { mulberry32 } from "../sim/items";
 import { formatName, nameKey, REGION_LABELS, REGIONS, SEX_LABELS, SEXES, type Region, type Sex } from "../sim/names";
@@ -17,25 +17,40 @@ type DebugCharacter = RolledCharacter & { key: string; art: ArtLook };
 /** Separate stream so the preview look does not shift names or stats for a seed. */
 const ART_SEED_SALT = 0x5bd1e995;
 
-function OutfitSelect({
+type Option<T extends string> = { id: T; label: string };
+
+const FAMILY_OPTIONS: Option<ArmorFamily>[] = ARMOR_FAMILIES.map((id) => ({ id, label: ARMOR_FAMILY_DEFS[id].label }));
+
+function heldOptions(slot: "mainHand" | "offHand"): Option<HeldKind>[] {
+  return gearKindsForSlot(slot)
+    .filter(isHeldKind)
+    .map((id) => ({ id, label: GEAR_KINDS[id].label }));
+}
+
+const MAIN_HAND_OPTIONS = heldOptions("mainHand");
+const OFF_HAND_OPTIONS = heldOptions("offHand");
+
+function OutfitSelect<T extends string>({
   label,
   none,
+  options,
   value,
   onChange,
 }: {
   label: string;
   none: string;
-  value: ArmorFamily | null;
-  onChange: (value: ArmorFamily | null) => void;
+  options: Option<T>[];
+  value: T | null;
+  onChange: (value: T | null) => void;
 }) {
   return (
     <label>
       {label}
-      <select value={value ?? ""} onChange={(event) => onChange((event.target.value || null) as ArmorFamily | null)}>
+      <select value={value ?? ""} onChange={(event) => onChange((event.target.value || null) as T | null)}>
         <option value="">{none}</option>
-        {ARMOR_FAMILIES.map((id) => (
-          <option key={id} value={id}>
-            {ARMOR_FAMILY_DEFS[id].label}
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
           </option>
         ))}
       </select>
@@ -178,20 +193,37 @@ export function CharacterDebugScreen({ onBack }: { onBack: () => void }) {
           <OutfitSelect
             label="Chest"
             none="Plain"
+            options={FAMILY_OPTIONS}
             value={outfit.chest}
             onChange={(chest) => setOutfit((current) => ({ ...current, chest }))}
           />
           <OutfitSelect
             label="Pants"
             none="Plain"
+            options={FAMILY_OPTIONS}
             value={outfit.pants}
             onChange={(pants) => setOutfit((current) => ({ ...current, pants }))}
           />
           <OutfitSelect
             label="Helmet"
             none="None"
+            options={FAMILY_OPTIONS}
             value={outfit.helmet}
             onChange={(helmet) => setOutfit((current) => ({ ...current, helmet }))}
+          />
+          <OutfitSelect
+            label="Main hand"
+            none="Empty"
+            options={MAIN_HAND_OPTIONS}
+            value={outfit.mainHand}
+            onChange={(mainHand) => setOutfit((current) => ({ ...current, mainHand }))}
+          />
+          <OutfitSelect
+            label="Off hand"
+            none="Empty"
+            options={OFF_HAND_OPTIONS}
+            value={outfit.offHand}
+            onChange={(offHand) => setOutfit((current) => ({ ...current, offHand }))}
           />
         </div>
         <div className="row-inline">

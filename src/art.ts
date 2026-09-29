@@ -25,12 +25,26 @@ const HAIR_BY_SEX: Record<Sex, readonly HairStyle[]> = {
   female: ["sweep", "long", "bob"],
 };
 
+/** Held-item sheet columns: main-hand kinds, then off-hand kinds. */
+export const HELD_KINDS = ["sword", "axe", "mace", "dagger", "bow", "staff", "wand", "shield", "tome"] as const;
+export type HeldKind = (typeof HELD_KINDS)[number];
+
+export function isHeldKind(kind: GearKindId): kind is HeldKind {
+  return (HELD_KINDS as readonly string[]).includes(kind);
+}
+
 export type ArtLook = { build: BodyBuild; skin: Skin; hairStyle: HairStyle; hairColor: HairColor };
 
-/** Worn armor subfamily per piece; null is the plain fallback (no helmet for the head). */
-export type ArtOutfit = { chest: ArmorFamily | null; pants: ArmorFamily | null; helmet: ArmorFamily | null };
+/** Worn armor subfamily per piece; null is the plain fallback (no helmet for the head, nothing held). */
+export type ArtOutfit = {
+  chest: ArmorFamily | null;
+  pants: ArmorFamily | null;
+  helmet: ArmorFamily | null;
+  mainHand: HeldKind | null;
+  offHand: HeldKind | null;
+};
 
-export const PLAIN_OUTFIT: ArtOutfit = { chest: null, pants: null, helmet: null };
+export const PLAIN_OUTFIT: ArtOutfit = { chest: null, pants: null, helmet: null, mainHand: null, offHand: null };
 
 function pick<T>(rng: Rng, values: readonly T[]): T {
   return values[Math.floor(rng.next() * values.length)]!;
@@ -51,6 +65,7 @@ const SHEETS = {
   chest: { url: new URL("./assets/art/characters/chest.png", import.meta.url).href, cols: 5, rows: 6 },
   pants: { url: new URL("./assets/art/characters/pants.png", import.meta.url).href, cols: 5, rows: 6 },
   helmet: { url: new URL("./assets/art/characters/helmet.png", import.meta.url).href, cols: 4, rows: 6 },
+  held: { url: new URL("./assets/art/characters/held.png", import.meta.url).href, cols: HELD_KINDS.length, rows: 6 },
   hair: {
     url: new URL("./assets/art/characters/hair.png", import.meta.url).href,
     cols: HAIR_COLORS.length,
@@ -58,13 +73,13 @@ const SHEETS = {
   },
 };
 
-export type ArtLayer = { url: string; cols: number; rows: number; col: number; row: number };
+export type ArtLayer = { key: string; url: string; cols: number; rows: number; col: number; row: number };
 
 function frame(sheet: keyof typeof SHEETS, col: number, row: number): ArtLayer {
-  return { ...SHEETS[sheet], col, row };
+  return { key: `${sheet}-${col}`, ...SHEETS[sheet], col, row };
 }
 
-/** Bottom to top: body, pants, chest, face, hair, helmet. */
+/** Bottom to top: body, pants, chest, face, hair, helmet, main hand, off hand. */
 export function artLayers(sex: Sex, look: ArtLook, outfit: ArtOutfit): ArtLayer[] {
   const build = (sex === "male" ? 0 : BODY_BUILDS.length) + BODY_BUILDS.indexOf(look.build);
   const skin = SKINS.indexOf(look.skin);
@@ -77,6 +92,9 @@ export function artLayers(sex: Sex, look: ArtLook, outfit: ArtOutfit): ArtLayer[
     frame("hair", HAIR_COLORS.indexOf(look.hairColor), build * HAIR_STYLES.length + HAIR_STYLES.indexOf(look.hairStyle)),
   ];
   if (outfit.helmet) layers.push(frame("helmet", ARMOR_FAMILIES.indexOf(outfit.helmet), build));
+  for (const held of [outfit.mainHand, outfit.offHand]) {
+    if (held) layers.push(frame("held", HELD_KINDS.indexOf(held), build));
+  }
   return layers;
 }
 
