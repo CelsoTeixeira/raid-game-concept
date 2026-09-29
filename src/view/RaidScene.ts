@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { ART_CELL, artLayers, type ArtLayer } from "../art";
 import { appearanceFrames, type SpriteFrame } from "../appearance";
 import { TILE } from "../sim/balance";
 import { canHeal, enemyTarget } from "../sim/combat";
@@ -33,10 +34,14 @@ const ROOM_FILL: Record<RoomSize, { floor: number; path: number }> = {
   exit: { floor: 0x16333a, path: 0x1f4a45 },
 };
 
+/** Bottom pixel row of the feet in an art cell; the feet stand ART_FEET_Y below the unit point. */
+const ART_FEET_ROW = 37;
+const ART_FEET_Y = 8;
+
 type UnitView = {
   id: string;
   body: Phaser.GameObjects.Container;
-  ring: Phaser.GameObjects.Arc;
+  ring: Phaser.GameObjects.Shape;
   hpBar: Phaser.GameObjects.Rectangle;
   manaBar: Phaser.GameObjects.Rectangle;
   label: Phaser.GameObjects.Text;
@@ -59,6 +64,7 @@ export class RaidScene extends Phaser.Scene {
   private moveHeld = false;
   private shift = false;
   private cameraController!: CameraController;
+  private artTextureKeys = new Set<string>();
 
   constructor() {
     super("raid");
@@ -75,10 +81,26 @@ export class RaidScene extends Phaser.Scene {
       frameHeight: CHARACTER_CELL_SIZE,
       spacing: 1,
     });
+    for (const unit of this.world.units) {
+      if (unit.sprite.kind !== "art") continue;
+      for (const layer of artLayers(unit.sprite.sex, unit.sprite.look, unit.sprite.outfit)) {
+        const key = this.artSheetKey(layer);
+        if (this.artTextureKeys.has(key)) continue;
+        this.artTextureKeys.add(key);
+        this.load.spritesheet(key, layer.url, {
+          frameWidth: ART_CELL.width,
+          frameHeight: ART_CELL.height,
+          spacing: 0,
+        });
+      }
+    }
   }
 
   create(): void {
     this.cameras.main.setBackgroundColor(0x1a1f16);
+    for (const key of this.artTextureKeys) {
+      this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
     const worldW = this.dungeon.cols * TILE;
     const worldH = this.dungeon.rows * TILE;
     const friendlies = this.world.units.filter(
@@ -265,14 +287,36 @@ export class RaidScene extends Phaser.Scene {
 
   private makeView(u: SimUnit): UnitView {
     const body = this.add.container(u.x, u.y).setDepth(5);
-    const spriteLayers = appearanceFrames(u.appearance).map((frame) => this.makeSpriteLayer(frame));
-    const ring = this.add.circle(0, 0, 18, 0x000000, 0).setStrokeStyle(2, 0xfef08a, 0);
-    const hpBar = this.add.rectangle(0, -20, 22, 3, 0x22c55e).setOrigin(0.5);
-    const manaBar = this.add.rectangle(0, -16, 22, 2, 0x38bdf8).setOrigin(0.5);
+    const isFriendlyArt = u.sprite.kind === "art";
+    const spriteLayers = u.sprite.kind === "art"
+      ? artLayers(u.sprite.sex, u.sprite.look, u.sprite.outfit).map((layer) =>
+          this.makeArtSpriteLayer(layer),
+        )
+      : appearanceFrames(u.sprite.appearance).map((frame) => this.makeSpriteLayer(frame));
+    const ring = isFriendlyArt
+      ? this.add.ellipse(0, ART_FEET_Y - 2, 30, 12, 0x000000, 0).setStrokeStyle(2, 0xfef08a, 0)
+      : this.add.circle(0, 0, 18, 0x000000, 0).setStrokeStyle(2, 0xfef08a, 0);
+    const headY = isFriendlyArt ? ART_FEET_Y - ART_FEET_ROW : -16;
+    const hpBar = this.add.rectangle(0, headY - 4, 22, 3, 0x22c55e).setOrigin(0.5);
+    const manaBar = this.add.rectangle(0, headY, 22, 2, 0x38bdf8).setOrigin(0.5);
     manaBar.setVisible(canHeal(u) && u.stats.maxMana > 0);
-    const label = this.add.text(0, 16, "", { fontSize: "9px", color: "#e5e7eb" }).setOrigin(0.5);
-    body.add([...spriteLayers, ring, hpBar, manaBar, label]);
+    const label = this.add
+      .text(0, isFriendlyArt ? ART_FEET_Y + 7 : 16, "", { fontSize: "9px", color: "#e5e7eb" })
+      .setOrigin(0.5);
+    body.add(isFriendlyArt
+      ? [ring, ...spriteLayers, hpBar, manaBar, label]
+      : [...spriteLayers, ring, hpBar, manaBar, label]);
     return { id: u.id, body, ring, hpBar, manaBar, label };
+  }
+
+  private artSheetKey(layer: ArtLayer): string {
+    return `art-${layer.key.slice(0, layer.key.lastIndexOf("-"))}`;
+  }
+
+  private makeArtSpriteLayer(layer: ArtLayer): Phaser.GameObjects.Image {
+    return this.add
+      .image(0, ART_FEET_Y, this.artSheetKey(layer), layer.row * layer.cols + layer.col)
+      .setOrigin(0.5, ART_FEET_ROW / ART_CELL.height);
   }
 
   private makeSpriteLayer(frame: SpriteFrame): Phaser.GameObjects.Image {

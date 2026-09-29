@@ -1,4 +1,6 @@
 import type { CharacterAppearance } from "../appearance";
+import type { ArtLook, ArtOutfit } from "../art";
+import type { Sex } from "./names";
 import type { WorldPoint } from "./nav";
 import type { Role, Side, Stats } from "./types";
 
@@ -10,6 +12,10 @@ export type UnitOrder =
 /** Enemy brain. Friendlies stay `idle`. */
 export type UnitAi = "idle" | "combat";
 
+export type UnitSprite =
+  | { kind: "kenney"; appearance: CharacterAppearance }
+  | { kind: "art"; sex: Sex; look: ArtLook; outfit: ArtOutfit };
+
 /**
  * Phaser-free unit.
  * `threat` is meaningful on enemies (attacker id → value). Friendlies keep an empty map.
@@ -19,7 +25,7 @@ export type SimUnit = {
   side: Side;
   /** Behavior only; reach, healing, and threat come from `stats`. */
   role: Role;
-  appearance: CharacterAppearance;
+  sprite: UnitSprite;
   stats: Stats;
   /** Hold-fire: skips auto-attack. Healer-role units still heal unless they have an attack order. */
   autoAttack: boolean;

@@ -227,7 +227,9 @@ export class DungeonScene extends Phaser.Scene {
   private makeView(u: SimUnit): UnitView {
     const groupIndex = this.world.groups.findIndex((g) => g.unitIds.includes(u.id));
     const body = this.add.container(u.x, u.y).setDepth(5);
-    const spriteLayers = appearanceFrames(u.appearance).map((frame) => this.makeSpriteLayer(frame));
+    const spriteLayers = u.sprite.kind === "kenney"
+      ? appearanceFrames(u.sprite.appearance).map((frame) => this.makeSpriteLayer(frame))
+      : [];
     const hpBar = this.add.rectangle(0, -20, 22, 3, 0x22c55e).setOrigin(0.5);
     const label = this.add
       .text(0, 16, groupIndex >= 0 ? `G${groupIndex + 1}` : "G", { fontSize: "9px", color: "#fecaca" })

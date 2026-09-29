@@ -396,7 +396,7 @@ export class DungeonWorld {
       id,
       side: "enemy",
       role: "dps",
-      appearance: ENEMY_APPEARANCE,
+      sprite: { kind: "kenney", appearance: ENEMY_APPEARANCE },
       stats: enemyStats(),
       autoAttack: true,
       selected: false,

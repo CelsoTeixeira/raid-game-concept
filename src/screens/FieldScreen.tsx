@@ -85,8 +85,8 @@ export function FieldScreen({
               </ul>
             )}
             <p className="legend">
-              Group sprites use the organizer appearance. Green body enemies. Melee swings only from
-              the next tile. M melee / R ranged under friendlies.
+              Group sprites use layered character art and equipped gear. Green body enemies. Melee
+              swings only from the next tile. M melee / R ranged under friendlies.
             </p>
           </aside>
         )}

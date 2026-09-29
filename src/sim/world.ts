@@ -1,4 +1,5 @@
-import { ENEMY_APPEARANCE, getMemberAppearance } from "../appearance";
+import { ENEMY_APPEARANCE } from "../appearance";
+import { outfitFromEquipment } from "../art";
 import { HEAL_RANGE, MAX_FRIENDLIES, TILE } from "./balance";
 import {
   act,
@@ -231,7 +232,7 @@ export class World {
     for (const [index, member] of this.group.slice(0, MAX_FRIENDLIES).entries()) {
       const slot = slots[index];
       if (!slot) break;
-      this.addFriendly(member, slot.c, slot.r, index);
+      this.addFriendly(member, slot.c, slot.r);
     }
   }
 
@@ -264,14 +265,19 @@ export class World {
     }
   }
 
-  private addFriendly(member: Character, c: number, r: number, index: number): void {
+  private addFriendly(member: Character, c: number, r: number): void {
     if (living(this.units, "friendly").length >= MAX_FRIENDLIES) return;
     const center = gridCenter({ c, r }, TILE);
     this.units.push({
       id: `friendly-${this.nextId++}`,
       side: "friendly",
       role: member.role,
-      appearance: getMemberAppearance(member, index),
+      sprite: {
+        kind: "art",
+        sex: member.sex,
+        look: member.look,
+        outfit: outfitFromEquipment(member.equipment),
+      },
       stats: copyCombatStats(member.stats),
       autoAttack: true,
       selected: false,
@@ -291,7 +297,7 @@ export class World {
       id: `enemy-${this.nextId++}`,
       side: "enemy",
       role: "dps",
-      appearance: ENEMY_APPEARANCE,
+      sprite: { kind: "kenney", appearance: ENEMY_APPEARANCE },
       stats: enemyStats(),
       autoAttack: true,
       selected: false,
